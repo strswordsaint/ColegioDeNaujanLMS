@@ -33,7 +33,19 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerate();
 
-        return redirect()->intended(route('dashboard', absolute: false));
+        // === ROLE CHECK ===
+        $role = $request->user()->role;
+
+        if ($role === 'teacher') {
+            return redirect()->intended(route('teacher.dashboard'));
+        }
+
+        if ($role === 'admin') {
+            return redirect()->intended(route('admin.dashboard'));
+        }
+
+        // Default (Student)
+        return redirect()->intended(route('dashboard'));
     }
 
     /**
@@ -47,6 +59,7 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerateToken();
 
-        return redirect('/');
+        // CHANGE: Redirect to Login instead of Welcome ('/')
+        return redirect()->route('login');
     }
 }
