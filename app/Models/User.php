@@ -2,12 +2,22 @@
 
 namespace App\Models;
 
-// ... existing imports ...
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
-class User extends Authenticatable
+/**
+ * @property int $id
+ * @property string $name
+ * @property string $email
+ * @property string $role
+ * @property string|null $google_id
+ * @property string|null $school_id
+ * @property string|null $contact_number
+ * @property string|null $avatar
+ */
+class User extends Authenticatable implements MustVerifyEmail
 {
     use HasFactory, Notifiable;
 
@@ -16,10 +26,13 @@ class User extends Authenticatable
         'email',
         'password',
         'role',
-        'google_id',      // <--- ADDED
-        'school_id',      // <--- ADDED
-        'contact_number', // <--- ADDED
-        'avatar',         // <--- ADDED
+        'status',
+        'suspension_reason',
+        'google_id',     
+        'school_id',      
+        'contact_number', 
+        'avatar', 
+        'program',  
     ];
 
     protected $hidden = [
@@ -35,7 +48,6 @@ class User extends Authenticatable
         ];
     }
 
-    // ... Keep your existing relationships (enrolledCourses, etc.) below ...
     public function enrolledCourses()
     {
         return $this->belongsToMany(Course::class, 'enrollments', 'user_id', 'course_id')

@@ -13,10 +13,9 @@ const form = useForm({
     thumbnail: null,
 });
 
-// --- CROPPER STATE ---
 const showCropModal = ref(false);
-const imageToCrop = ref(null); // The raw file URL
-const croppedPreview = ref(null); // The final result to show
+const imageToCrop = ref(null);
+const croppedPreview = ref(null);
 const cropper = reactive({
     scale: 1,
     x: 0,
@@ -32,13 +31,11 @@ const handleFileChange = (event) => {
     const file = event.target.files[0];
     if (file) {
         imageToCrop.value = URL.createObjectURL(file);
-        // Reset cropper
         cropper.scale = 1;
         cropper.x = 0;
         cropper.y = 0;
         showCropModal.value = true;
     }
-    // Reset input so same file can be selected again if cancelled
     event.target.value = '';
 };
 
@@ -69,29 +66,18 @@ const applyCrop = () => {
     canvas.width = 800;
     canvas.height = 450;
 
-    // Background color (if image doesn't fill)
-    ctx.fillStyle = '#0f172a'; // slate-900
+    ctx.fillStyle = '#0f172a';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Calculate scaling ratio between displayed size and actual canvas size
-    // The container in modal is fixed (e.g., let's say 400px wide in CSS)
-    // We need to map the CSS transforms to the Canvas scaling
-    const scaleFactor = canvas.width / 480; // 480 is the modal container width defined below
+    const scaleFactor = canvas.width / 480;
 
     ctx.translate(canvas.width / 2, canvas.height / 2);
     ctx.scale(cropper.scale, cropper.scale);
     ctx.translate(-canvas.width / 2, -canvas.height / 2);
     
-    // Draw image with offset
-    // We multiply x/y by scaleFactor to match the larger canvas resolution
-    ctx.drawImage(img, cropper.x * scaleFactor, cropper.y * scaleFactor, img.naturalWidth * scaleFactor, img.naturalHeight * scaleFactor); // Simplified logic for basic centering
-
-    // Note: A perfect mapping requires precise CSS-to-Canvas math. 
-    // This simplified version draws what you see relative to center.
-    // For a robust version, we rely on the visual "what you see is what you get".
+    ctx.drawImage(img, cropper.x * scaleFactor, cropper.y * scaleFactor, img.naturalWidth * scaleFactor, img.naturalHeight * scaleFactor);
     
     canvas.toBlob((blob) => {
-        // Create a new File object from the blob
         const file = new File([blob], "course_thumbnail.jpg", { type: "image/jpeg" });
         form.thumbnail = file;
         croppedPreview.value = URL.createObjectURL(blob);
@@ -165,11 +151,12 @@ const submit = () => {
                     </div>
 
                     <div>
-                        <label for="course_difficulty" class="block text-xs font-bold text-blue-900 dark:text-blue-400 mb-1.5 uppercase tracking-wide">Difficulty Level</label>
+                        <label for="course_difficulty" class="block text-xs font-bold text-blue-900 dark:text-blue-400 mb-1.5 uppercase tracking-wide">Year Level</label>
                         <select id="course_difficulty" v-model="form.difficulty_level" class="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded p-2.5 text-sm focus:ring-2 focus:ring-yellow-400 focus:border-blue-700">
-                            <option value="beginner">Beginner</option>
-                            <option value="intermediate">Intermediate</option>
-                            <option value="advanced">Advanced</option>
+                            <option value="beginner">1st Year</option>
+                            <option value="intermediate">2nd Year</option>
+                            <option value="advanced">3rd Year</option>
+                            <option value="final">4th Year</option>
                         </select>
                         <InputError class="mt-2" :message="form.errors.difficulty_level" />
                     </div>
@@ -197,7 +184,7 @@ const submit = () => {
                          :style="{ 
                              transform: `translate(${cropper.x}px, ${cropper.y}px) scale(${cropper.scale})`,
                              left: '50%', top: '50%', 
-                             marginLeft: '-50%', marginTop: '-50%' // Center initial pivot
+                             marginLeft: '-50%', marginTop: '-50%'
                          }" />
                     
                     <div class="absolute inset-0 pointer-events-none border-2 border-white/30 rounded-lg shadow-[0_0_0_9999px_rgba(0,0,0,0.5)]"></div>

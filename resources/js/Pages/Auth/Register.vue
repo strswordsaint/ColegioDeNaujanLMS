@@ -19,7 +19,7 @@ const form = useForm({});
                     <img class="h100 w-100 -ml-32" src="/images/Logo2.png" alt="Collegio de Naujan" />
                     <div class="-ml-16 flex-shrink-0">
                         <h2 class="text-4xl font-bold tracking-tight text-white">
-                            Collegio de Naujan
+                            Colegio de Naujan
                         </h2>
                         <p class="mt-2 text-lg text-blue-100">
                             Join our learning community today.
@@ -46,7 +46,7 @@ const form = useForm({});
                 <div class="mt-10">
                     <div class="bg-gray-50 p-6 rounded-xl border border-gray-200 text-center">
                         <h3 class="text-gray-900 font-bold mb-2">Get Started</h3>
-                        <p class="text-sm text-gray-500 mb-6">Use your Google account to verify your identity and set up your student or teacher profile.</p>
+                        <p class="text-sm text-gray-500 mb-6">Use your Google account to verify your identity and set up your student profile.</p>
                         
                         <a :href="route('auth.google')" class="flex w-full justify-center items-center gap-3 rounded-lg bg-blue-600 px-4 py-3 text-white font-bold shadow-md hover:bg-blue-700 transition-all transform hover:-translate-y-0.5">
                             <div class="bg-white p-1 rounded-full">

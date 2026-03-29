@@ -2,8 +2,9 @@
 
 namespace App\Providers;
 
-use Illuminate\Support\Facades\Vite;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Auth\Notifications\VerifyEmail;
+use Illuminate\Notifications\Messages\MailMessage;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -20,6 +21,15 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        Vite::prefetch(concurrency: 3);
+        // Customize the default Laravel Verification Email
+        VerifyEmail::toMailUsing(function (object $notifiable, string $url) {
+            return (new MailMessage)
+                ->subject('Verify Your Colegio de Naujan Account')
+                ->greeting('Hello ' . $notifiable->name . '!')
+                ->line('An account has been created for you in the Colegio de Naujan LMS.')
+                ->line('Please click the button below to verify your email address and activate your account.')
+                ->action('Verify My Account', $url)
+                ->line('If you did not request this account, you can safely ignore this email.');
+        });
     }
 }

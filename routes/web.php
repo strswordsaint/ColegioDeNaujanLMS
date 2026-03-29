@@ -11,6 +11,7 @@ use App\Http\Controllers\CommentController;
 use App\Http\Controllers\AdminDashboardController;
 use App\Http\Controllers\AIChatController;
 use App\Http\Controllers\Auth\GoogleAuthController;
+use App\Http\Controllers\CalendarController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -21,7 +22,7 @@ Route::get('/', function () {
         'canRegister' => Route::has('register'),
         'laravelVersion' => Application::VERSION,
         'phpVersion' => PHP_VERSION,
-        'status' => session('status'), // Pass status to the welcome page
+        'status' => session('status'),
     ]);
 });
 
@@ -40,7 +41,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
         if ($role === 'admin') return redirect()->route('admin.dashboard');
         if ($role === 'teacher') return redirect()->route('teacher.dashboard');
         
-        // Redirect pending teachers to welcome page
         if ($role === 'pending_teacher') {
             return redirect('/')->with('status', 'Your teacher account is pending administrator approval.');
         }
@@ -95,17 +95,34 @@ Route::middleware(['auth', 'verified', 'role:teacher'])->prefix('teacher')->name
     Route::post('/submissions/{submission}/grade', [AssignmentController::class, 'gradeSubmission'])->name('submissions.grade');
     Route::post('/courses/{course}/announcements', [AnnouncementController::class, 'store'])->name('announcements.store');
     Route::delete('/announcements/{announcement}', [AnnouncementController::class, 'destroy'])->name('announcements.destroy');
+    Route::patch('/lessons/{lesson}/request-unarchive', [LessonController::class, 'teacherUnarchive'])->name('lessons.unarchive');
+    Route::get('/gradebook/{course?}', [CourseController::class, 'gradebook'])->name('gradebook.index');
+    Route::post('/lessons/{lesson}/resubmit', [LessonController::class, 'resubmit'])->name('lessons.resubmit');
 });
 
 // ADMIN ROUTES
 Route::middleware(['auth', 'verified', 'role:admin'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/dashboard', [AdminDashboardController::class, 'index'])->name('dashboard');
     Route::get('/users', [AdminDashboardController::class, 'users'])->name('users.index');
+    Route::post('/users', [AdminDashboardController::class, 'storeUser'])->name('users.store');
     Route::get('/courses', [AdminDashboardController::class, 'courses'])->name('courses.index');
     Route::patch('/users/{user}/toggle-status', [AdminDashboardController::class, 'toggleUserStatus'])->name('users.toggle-status');
     Route::patch('/users/{user}/approve-teacher', [AdminDashboardController::class, 'approveTeacher'])->name('users.approve-teacher');
     Route::delete('/users/{user}/reject-teacher', [AdminDashboardController::class, 'rejectTeacher'])->name('users.reject-teacher');
+    Route::patch('/lessons/bulk-approve', [LessonController::class, 'bulkApprove'])->name('lessons.bulk-approve');
+    Route::patch('/lessons/{lesson}/approve', [LessonController::class, 'approve'])->name('lessons.approve');
+    Route::post('/courses', [AdminDashboardController::class, 'storeCourse'])->name('courses.store');
+    Route::get('/materials', [AdminDashboardController::class, 'materials'])->name('materials');
+    Route::patch('/materials/{lesson}/archive', [LessonController::class, 'archive'])->name('lessons.archive');
+    Route::patch('/lessons/{lesson}/unarchive', [LessonController::class, 'unarchive'])->name('lessons.unarchive');
+    Route::patch('/lessons/{lesson}/reject', [LessonController::class, 'reject'])->name('lessons.reject');
+    Route::post('/settings/material-approval', [AdminDashboardController::class, 'toggleMaterialApproval'])->name('settings.material-approval');
+    Route::patch('/lessons/{lesson}/update', [LessonController::class, 'update'])->name('lessons.update');
+    
+});
 
+Route::middleware(['auth', 'verified'])->group(function () {
+    Route::get('/calendar', [CalendarController::class, 'index'])->name('calendar.index');
 });
 
 require __DIR__.'/auth.php';

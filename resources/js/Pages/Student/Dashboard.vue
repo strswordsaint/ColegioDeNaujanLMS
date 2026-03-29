@@ -23,132 +23,121 @@ const quickJoin = (code) => {
     <Head title="Dashboard" />
 
     <AuthenticatedLayout>
-        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-            <div>
-                <h1 class="text-xl font-bold text-slate-800 dark:text-white leading-tight">
-                    Hello, {{ $page.props.auth.user.name.split(' ')[0] }}
-                </h1>
-                <p class="text-xs text-slate-500 dark:text-slate-400">Your learning overview</p>
+        
+        <div class="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-xl p-3 md:p-4 text-white shadow-sm mb-4 flex justify-between items-center gap-3 relative overflow-hidden">
+            <div class="flex items-center gap-2.5 z-10">
+                <div class="w-8 h-8 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center text-sm font-bold border border-white/20 shrink-0">
+                    {{ $page.props.auth.user.name.charAt(0) }}
+                </div>
+                <div class="min-w-0">
+                    <h1 class="text-sm md:text-base font-extrabold truncate">Hi, {{ $page.props.auth.user.name.split(' ')[0] }}!</h1>
+                    <p class="text-[9px] text-blue-100 uppercase tracking-widest font-semibold hidden sm:block">Welcome back</p>
+                </div>
             </div>
             
-            <div class="flex gap-3">
-                <div class="bg-blue-600 text-white px-4 py-2 rounded-lg shadow-sm flex items-center gap-3">
-                    <div class="p-1.5 bg-white/20 rounded-md">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
-                    </div>
-                    <div>
-                        <p class="text-[10px] uppercase font-bold opacity-80">Enrolled</p>
-                        <p class="text-lg font-black leading-none">{{ stats.courses }}</p>
-                    </div>
+            <div class="flex gap-2 z-10 shrink-0">
+                <div class="bg-black/20 backdrop-blur-sm px-2.5 py-1 rounded-lg flex items-center gap-1.5 border border-white/10">
+                    <span class="text-[9px] uppercase font-bold text-blue-100">Classes:</span>
+                    <span class="text-xs font-black">{{ stats.courses }}</span>
                 </div>
-                <div class="bg-purple-600 text-white px-4 py-2 rounded-lg shadow-sm flex items-center gap-3">
-                    <div class="p-1.5 bg-white/20 rounded-md">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                    </div>
-                    <div>
-                        <p class="text-[10px] uppercase font-bold opacity-80">Pending</p>
-                        <p class="text-lg font-black leading-none">{{ stats.pending }}</p>
-                    </div>
+                <div class="bg-white text-blue-700 px-2.5 py-1 rounded-lg flex items-center gap-1.5 shadow-sm">
+                    <span class="text-[9px] uppercase font-bold">To-Do:</span>
+                    <span class="text-xs font-black">{{ stats.pending }}</span>
                 </div>
             </div>
         </div>
 
-        <div v-if="remedial && remedial.length > 0" class="mb-6 animate-fade-in">
-            <div class="bg-red-50 dark:bg-red-900/10 border-l-4 border-red-500 rounded-r-lg p-3 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between shadow-sm">
-                <div class="flex items-start gap-3">
-                    <div class="p-2 bg-red-100 dark:bg-red-900/30 rounded-full text-red-600 dark:text-red-400">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
-                    </div>
-                    <div>
-                        <h3 class="text-xs font-bold text-red-700 dark:text-red-400 uppercase tracking-wide">Action Required</h3>
-                        <p class="text-[10px] text-red-600 dark:text-red-300">
-                            Your average dropped in <b>{{ remedial[0].course_title }}</b>. AI Suggestion: {{ remedial[0].remedial_tip }}
-                        </p>
-                    </div>
-                </div>
-                <div class="flex gap-2 w-full sm:w-auto">
-                    <Link v-if="remedial[0].remedial_type === 'lesson'" 
-                          :href="route('student.courses.show', { course: remedial[0].course_id, tab: 'materials', target: remedial[0].id })" 
-                          class="text-xs font-bold bg-white text-red-600 border border-red-200 px-3 py-1.5 rounded hover:bg-red-50 transition shadow-sm w-full sm:w-auto text-center flex items-center justify-center gap-1">
-                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
-                        Review Lesson
-                    </Link>
+        <div v-if="remedial && remedial.length > 0" class="mb-3 animate-fade-in">
+            <div class="bg-red-600 text-white rounded-lg p-2 flex justify-between items-center gap-2 shadow-sm border border-red-700">
+                <div class="flex items-center gap-1.5 min-w-0">
+                    <span class="relative flex h-1.5 w-1.5 shrink-0 ml-0.5">
+                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-200 opacity-75"></span>
+                        <span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-white"></span>
+                    </span>
                     
-                    <Link v-else 
-                          :href="route('student.courses.show', { course: remedial[0].course_id, tab: 'assignments', target: remedial[0].id })" 
-                          class="text-xs font-bold bg-red-600 text-white px-3 py-1.5 rounded hover:bg-red-700 transition shadow-sm w-full sm:w-auto text-center flex items-center justify-center gap-1">
-                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
-                        Do Assignment
-                    </Link>
+                    <p class="text-[9px] sm:text-[10px] truncate leading-none mt-px">
+                        <b class="font-black uppercase tracking-wider">{{ remedial[0].course_title }}</b> 
+                        <span class="opacity-75 mx-1">-</span> 
+                        <span class="font-medium">{{ remedial[0].remedial_tip }}</span>
+                    </p>
                 </div>
+                
+                <Link :href="route('student.courses.show', { course: remedial[0].course_id, tab: remedial[0].remedial_type === 'lesson' ? 'materials' : 'assignments', target: remedial[0].id })" 
+                      class="shrink-0 text-[8px] sm:text-[9px] font-bold bg-white text-red-700 uppercase tracking-widest px-2 py-1 rounded hover:bg-red-50 transition-colors leading-none shadow-sm">
+                    Resolve
+                </Link>
             </div>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 items-start">
             
-            <div class="lg:col-span-3 space-y-6">
+            <div class="md:col-span-1 lg:col-span-2 space-y-3 md:space-y-4">
                 
-                <div class="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
-                    <div class="bg-slate-50 dark:bg-slate-700/50 px-4 py-2 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
-                        <h3 class="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wide">Upcoming Deadlines</h3>
-                        <Link :href="route('student.assignments')" class="text-[10px] text-blue-600 font-bold hover:underline">View All</Link>
+                <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
+                    <div class="px-3 py-2 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/50">
+                        <h3 class="text-[10px] font-black text-slate-800 dark:text-slate-200 uppercase tracking-widest flex items-center gap-1.5">
+                            <svg class="w-3 h-3 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            Deadlines
+                        </h3>
+                        <Link :href="route('student.assignments')" class="text-[9px] text-blue-600 font-bold hover:underline">View All</Link>
                     </div>
+                    
                     <div v-if="upcoming.length > 0" class="divide-y divide-slate-100 dark:divide-slate-700">
-                        <div v-for="task in upcoming" :key="task.id" class="p-3 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition flex items-center justify-between gap-3">
-                            <div class="flex items-center gap-3 overflow-hidden">
-                                <div class="w-8 h-8 rounded bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 flex flex-col items-center justify-center shrink-0 border border-blue-100 dark:border-blue-900/30">
-                                    <span class="text-[8px] font-bold uppercase leading-none">{{ new Date(task.due_date).toLocaleString('default', { month: 'short' }) }}</span>
-                                    <span class="text-xs font-black leading-none">{{ new Date(task.due_date).getDate() }}</span>
-                                </div>
-                                <div class="min-w-0">
-                                    <h4 class="text-xs font-bold text-slate-900 dark:text-white truncate">{{ task.title }}</h4>
-                                    <p class="text-[10px] text-slate-500 truncate">{{ task.course.title }}</p>
-                                </div>
+                        <Link v-for="task in upcoming" :key="task.id" :href="route('student.courses.show', { course: task.course_id, tab: 'assignments', target: task.id })" 
+                              class="p-2.5 hover:bg-blue-50/50 dark:hover:bg-slate-700/30 flex items-center gap-2.5 transition cursor-pointer">
+                            <div class="w-9 h-9 rounded bg-slate-100 dark:bg-slate-900 flex flex-col items-center justify-center shrink-0 border border-slate-200 dark:border-slate-700">
+                                <span class="text-[7px] font-black uppercase leading-none">{{ new Date(task.due_date).toLocaleString('default', { month: 'short' }) }}</span>
+                                <span class="text-xs font-black leading-none mt-0.5">{{ new Date(task.due_date).getDate() }}</span>
                             </div>
-                            <Link :href="route('student.courses.show', { course: task.course_id, tab: 'assignments', target: task.id })" 
-                                  class="shrink-0 text-[10px] font-bold text-slate-500 border border-slate-200 px-2 py-1 rounded hover:bg-slate-100 dark:border-slate-600 dark:text-slate-400 dark:hover:bg-slate-700">
-                                Open
-                            </Link>
-                        </div>
+                            <div class="min-w-0 flex-1">
+                                <h4 class="text-[11px] font-bold text-slate-900 dark:text-white truncate leading-tight">{{ task.title }}</h4>
+                                <p class="text-[9px] font-medium text-slate-500 truncate">{{ task.course.title }}</p>
+                            </div>
+                            <svg class="w-3.5 h-3.5 text-slate-300 dark:text-slate-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                        </Link>
                     </div>
-                    <div v-else class="p-6 text-center flex flex-col items-center justify-center gap-2">
-                         <svg class="w-8 h-8 text-green-400 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                        <p class="text-xs text-slate-400">All caught up!</p>
+                    <div v-else class="p-4 text-center">
+                        <p class="text-[10px] text-slate-500 font-medium">No upcoming deadlines.</p>
                     </div>
                 </div>
             </div>
 
-            <div class="lg:col-span-1 space-y-6">
+            <div class="space-y-3 md:space-y-4">
                 
-                <div class="bg-white dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700 shadow-sm">
-                    <h3 class="text-xs font-bold text-slate-900 dark:text-white mb-2 flex items-center gap-1">
-                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                        Join New Class
+                <div class="bg-white dark:bg-slate-800 rounded-xl p-3 border border-slate-200 dark:border-slate-700 shadow-sm relative overflow-hidden">
+                    <h3 class="text-[10px] font-black text-slate-800 dark:text-slate-200 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                        <svg class="w-3 h-3 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                        Join Class
                     </h3>
-                    <form @submit.prevent="joinForm.post(route('student.courses.join'), { onSuccess: () => joinForm.reset() })" class="flex flex-col gap-2">
-                        <input v-model="joinForm.code" type="text" placeholder="CODE" class="w-full py-1.5 px-3 rounded border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-xs font-mono uppercase focus:ring-1 focus:ring-blue-500">
-                        <button :disabled="joinForm.processing" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-1.5 rounded text-[10px] font-bold uppercase tracking-wide transition">
-                            Join
-                        </button>
+                    <form @submit.prevent="joinForm.post(route('student.courses.join'), { onSuccess: () => joinForm.reset() })" class="flex gap-1.5">
+                        <input v-model="joinForm.code" type="text" placeholder="CODE" class="flex-1 py-1 px-2 h-7 rounded border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-[10px] font-mono uppercase tracking-widest focus:ring-1 focus:ring-blue-500">
+                        <button :disabled="joinForm.processing || !joinForm.code" class="bg-slate-900 dark:bg-blue-600 text-white px-2.5 h-7 rounded text-[9px] font-bold uppercase transition disabled:opacity-50">Join</button>
                     </form>
                 </div>
 
-                <div class="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
-                    <div class="bg-slate-50 dark:bg-slate-700/50 px-4 py-2 border-b border-slate-200 dark:border-slate-700">
-                        <h3 class="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wide">Updates</h3>
+                <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
+                    <div class="px-3 py-2 border-b border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50">
+                        <h3 class="text-[10px] font-black text-slate-800 dark:text-slate-200 uppercase tracking-widest flex items-center gap-1.5">
+                            <svg class="w-3 h-3 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"></path></svg>
+                            Fresh Updates
+                        </h3>
                     </div>
+                    
                     <div v-if="announcements.length > 0" class="divide-y divide-slate-100 dark:divide-slate-700">
-                        <div v-for="post in announcements" :key="post.id" class="p-3 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition">
-                            <div class="flex items-center gap-2 mb-1">
-                                <div class="w-5 h-5 rounded-full bg-slate-200 dark:bg-slate-600 flex items-center justify-center text-[9px] font-bold text-slate-600 dark:text-slate-300">{{ post.user.name.charAt(0) }}</div>
-                                <span class="text-[10px] font-bold text-slate-700 dark:text-slate-300 truncate">{{ post.user.name }}</span>
+                        <Link v-for="post in announcements" :key="post.id" :href="route('student.courses.show', post.course_id)" 
+                              class="flex flex-col p-2.5 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition cursor-pointer">
+                            <div class="flex items-center justify-between gap-2 mb-0.5">
+                                <span class="text-[7px] font-bold text-purple-600 dark:text-purple-400 uppercase tracking-widest bg-purple-50 dark:bg-purple-900/30 px-1.5 py-0.5 rounded truncate max-w-[70%]">
+                                    {{ post.course.title }}
+                                </span>
+                                <span class="text-[8px] font-medium text-slate-500 truncate">{{ post.user.name.split(' ')[0] }}</span>
                             </div>
-                            <p class="text-[10px] text-slate-500 dark:text-slate-400 line-clamp-2 mb-1 leading-snug">{{ post.content }}</p>
-                            <Link :href="route('student.courses.show', post.course_id)" class="text-[9px] text-blue-600 font-bold hover:underline">Read</Link>
-                        </div>
+                            <h4 class="text-[11px] font-bold text-slate-900 dark:text-white leading-tight truncate">{{ post.title }}</h4>
+                            <p class="text-[9px] text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.5 leading-relaxed">{{ post.content.replace(/<\/?[^>]+(>|$)/g, "") }}</p>
+                        </Link>
                     </div>
                     <div v-else class="p-4 text-center">
-                        <p class="text-[10px] text-slate-400 italic">No updates.</p>
+                        <p class="text-[10px] text-slate-500 font-medium">No new updates this week.</p>
                     </div>
                 </div>
 
@@ -158,6 +147,5 @@ const quickJoin = (code) => {
 </template>
 
 <style scoped>
-.animate-fade-in { animation: fadeIn 0.5s ease-out; }
-@keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+.pb-safe { padding-bottom: env(safe-area-inset-bottom); }
 </style>

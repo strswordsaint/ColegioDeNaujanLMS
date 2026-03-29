@@ -20,44 +20,51 @@ class StudentController extends Controller
     {
         $user = Auth::user();
         
-        // --- 1. PERFORMANCE ANALYSIS & RESCUE ENGINE ---
         $remedialItems = [];
         
         // Get courses
         $enrolledCourses = $user->enrolledCourses()
             ->wherePivot('status', 'approved')
-            ->with(['assignments', 'assignments.submissions' => function($q) use ($user) {
-                $q->where('student_id', $user->id);
-            }, 'lessons'])
+            ->with([
+                'assignments', 
+                'assignments.submissions' => function($q) use ($user) {
+                    $q->where('student_id', $user->id);
+                }, 
+                'lessons' => function($q) {
+                    $q->where('approval_status', 'approved');
+                }
+            ])
             ->get();
 
-        foreach ($enrolledCourses as $course) {
-            $totalPoints = 0;
-            $earnedPoints = 0;
-            $hasGradedWork = false;
+            foreach ($enrolledCourses as $course) {
+                $totalPoints = 0;
+                $earnedPoints = 0;
+                $hasGradedWork = false;
+                $now = now();
 
-            foreach ($course->assignments as $assign) {
-                $submission = $assign->submissions->first();
-                if ($submission && $submission->grade !== null) {
-                    $totalPoints += $assign->points;
-                    $earnedPoints += $submission->grade;
-                    $hasGradedWork = true;
+                foreach ($course->assignments as $assign) {
+                    $submission = $assign->submissions->first();
+                    
+                    if ($submission && $submission->grade !== null) {
+                        $totalPoints += $assign->points;
+                        $earnedPoints += $submission->grade;
+                        $hasGradedWork = true;
+                    } elseif (!$submission && $assign->due_date < $now) {
+                        $totalPoints += $assign->points;
+                        $hasGradedWork = true;
+                    }
                 }
-            }
 
             // Calculate Grade
             $average = ($hasGradedWork && $totalPoints > 0) ? ($earnedPoints / $totalPoints) * 100 : 100;
             
-            // TRIGGER: If Grade is Below 75%
+            // if Grade is Below 75%
             if ($average < 75) {
                 $pendingAssignments = $course->assignments->filter(fn($a) => !$a->submissions->first())->values()->take(3);
                 $availableLessons = $course->lessons->take(3);
 
-                // --- NEW CACHING LOGIC ---
-                // We create a unique cache key for this user and course
                 $cacheKey = "remedial_plan_{$user->id}_{$course->id}";
 
-                // Check cache first. If not found, call AI and save for 60 minutes.
                 $aiSuggestions = Cache::remember($cacheKey, 3600, function () use ($ai, $course, $average, $pendingAssignments, $availableLessons) {
                     return $ai->recommendStudyPlan($course->title, round($average), $pendingAssignments, $availableLessons);
                 });
@@ -76,7 +83,6 @@ class StudentController extends Controller
                         }
                     }
                 } else {
-                    // Fallback if AI fails or returns null
                     if ($assign = $pendingAssignments->first()) {
                         $assign->remedial_type = 'assignment';
                         $assign->remedial_tip = 'Complete this to improve your grade.';
@@ -99,8 +105,9 @@ class StudentController extends Controller
             ->get();
 
         $recentAnnouncements = Announcement::whereIn('course_id', $approvedCourseIds)
+            ->where('created_at', '>=', now()->subDays(7)) // NEW: Only show updates from the last 7 days
             ->latest()
-            ->take(3)
+            ->take(5) // Increased from 3 to 5 since they auto-delete quickly
             ->with('course:id,title', 'user:id,name')
             ->get();
 
@@ -200,7 +207,9 @@ class StudentController extends Controller
         }
 
         $course->load([
-            'lessons',
+            'lessons' => function($query) {
+                $query->where('approval_status', 'approved');
+            },
             'announcements.user',          
             'announcements.comments.user', 
             'assignments.submissions' => function($q) use ($user) {
@@ -224,9 +233,17 @@ class StudentController extends Controller
         if (!$isApproved) abort(403, 'You are not approved in this course.');
 
         $request->validate([
-            'files' => 'required|array',
-            'files.*' => 'file|max:10240'
+            'files' => 'nullable|array',
+            'files.*' => 'file|mimes:pdf,doc,docx,xls,xlsx,ppt,pptx,txt,zip,jpg,jpeg,png|max:10240', 
+            'text_content' => 'nullable|string'
+        ], [
+            'files.*.mimes' => 'Files must be a document, image, or zip archive.'
         ]);
+
+        // Ensure they submit at least one format
+        if (!$request->hasFile('files') && empty($request->text_content)) {
+            return back()->with('error', 'Please provide a file or text answer.');
+        }
 
         $paths = [];
         if ($request->hasFile('files')) {
@@ -238,7 +255,8 @@ class StudentController extends Controller
         Submission::updateOrCreate(
             ['assignment_id' => $assignment->id, 'student_id' => Auth::id()],
             [
-                'file_paths' => $paths, 
+                'file_paths' => !empty($paths) ? $paths : null, 
+                'text_content' => $request->text_content,
                 'submitted_at' => now()
             ]
         );

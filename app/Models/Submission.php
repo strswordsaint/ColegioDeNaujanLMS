@@ -11,6 +11,7 @@ class Submission extends Model
         'assignment_id', 
         'student_id', 
         'file_paths', 
+        'text_content',
         'grade', 
         'feedback', 
         'submitted_at'

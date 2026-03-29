@@ -1,32 +1,37 @@
 <script setup>
 import { ref, nextTick, onMounted, watch } from 'vue';
 import axios from 'axios';
+import { usePage } from '@inertiajs/vue3';
 
 const isOpen = ref(false);
-// Initialize messages as empty; onMounted will fill this
 const messages = ref([]);
 const messagesContainer = ref(null);
 const userMessage = ref('');
 const isLoading = ref(false);
 
+// Generate a dynamic storage key based on the currently logged-in user ID
+const page = usePage();
+const userId = page.props.auth.user.id;
+const storageKey = `lms_ai_chat_history_${userId}`;
+
 // --- PERSISTENCE LOGIC ---
 
-// 1. Load messages from localStorage when the component is ready
+// 1. Load messages from localStorage using the unique user key
 onMounted(() => {
-    const savedChat = localStorage.getItem('lms_ai_chat_history');
+    const savedChat = localStorage.getItem(storageKey);
     if (savedChat) {
         messages.value = JSON.parse(savedChat);
     } else {
-        // Default welcome message if no history exists
+        // Default welcome message if no history exists for this specific user
         messages.value = [
             { role: 'ai', content: 'Hello! I am your AI Assistant. How can I help you today?' }
         ];
     }
 });
 
-// 2. Watch for changes in messages and save to localStorage automatically
+// 2. Watch for changes in messages and save to the unique user key
 watch(messages, (newVal) => {
-    localStorage.setItem('lms_ai_chat_history', JSON.stringify(newVal));
+    localStorage.setItem(storageKey, JSON.stringify(newVal));
 }, { deep: true });
 
 // 3. Manual Reset/Refresh function
@@ -35,7 +40,7 @@ const clearChat = () => {
         messages.value = [
             { role: 'ai', content: 'History cleared. How can I help you now?' }
         ];
-        localStorage.removeItem('lms_ai_chat_history');
+        localStorage.removeItem(storageKey);
     }
 };
 

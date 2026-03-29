@@ -9,10 +9,14 @@ use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
+use Carbon\Carbon;
+use App\Notifications\AssignmentGraded;
+use App\Notifications\NewAssignmentPosted;
+use App\Models\User;
+use Illuminate\Support\Facades\Notification;
 
 class AssignmentController extends Controller
 {
-    // ... index, create methods remain the same ...
     public function index()
     {
         $courses = Course::where('teacher_id', Auth::id())
@@ -47,43 +51,42 @@ class AssignmentController extends Controller
         ]);
     }
 
-    // --- UPDATED STORE METHOD ---
     public function store(Request $request, Course $course)
     {
-        if ($course->teacher_id !== Auth::id()) abort(403);
-
         $request->validate([
             'title' => 'required|string|max:255',
+            'type' => 'required|in:assignment,quiz,exam',
             'description' => 'nullable|string',
-            'due_date' => 'required|date', // Strict Validation
-            'points' => 'required|integer|min:0',
-            'files.*' => 'file|max:20480', 
+            'points' => 'required|integer|min:1',
+            'due_date' => 'required|date|after:now',
+            'files.*' => 'nullable|file|max:20480',
         ]);
 
-        $paths = [];
+        $data = $request->only(['title', 'type', 'description', 'points', 'due_date']);
+
         if ($request->hasFile('files')) {
+            $paths = [];
             foreach ($request->file('files') as $file) {
                 $paths[] = $file->store('assignments', 'public');
             }
+            $data['attachment_paths'] = json_encode($paths);
         }
 
-        $course->assignments()->create([
-            'title' => $request->title,
-            'description' => $request->description,
-            'due_date' => $request->due_date,
-            'points' => $request->points,
-            'attachment_paths' => !empty($paths) ? json_encode($paths) : null,
-        ]);
+        $assignment = $course->assignments()->create($data);
+        
+        $students = User::whereHas('enrolledCourses', function($query) use ($course) {
+            $query->where('course_id', $course->id)->where('enrollments.status', 'approved');
+        })->get();
 
-        // "Exit the page" -> Redirect to the correct parent page
-        if ($request->input('source') === 'global') {
-            return redirect()->route('teacher.assignments.index')->with('success', 'Assignment created successfully.');
-        }
+        Notification::send($students, new NewAssignmentPosted($assignment));
+    
+        $redirectRoute = $request->source === 'global' 
+            ? route('teacher.assignments.index') 
+            : route('teacher.courses.show', $course->id);
 
-        return redirect()->route('teacher.courses.show', $course->id)->with('success', 'Assignment created successfully.');
+        return redirect($redirectRoute)->with('success', 'Assignment created successfully.');
     }
 
-    // ... show, update, destroy, gradeSubmission methods ...
     public function show(Request $request, Assignment $assignment)
     {
         if ($assignment->course->teacher_id !== Auth::id()) abort(403);
@@ -167,8 +170,10 @@ class AssignmentController extends Controller
         $submission->update([
             'grade' => $request->grade,
             'feedback' => $request->feedback,
-            'graded_at' => now(),
         ]);
+
+        // NEW: Notify the student
+        $submission->student->notify(new AssignmentGraded($submission));
 
         return back()->with('success', 'Grade saved.');
     }

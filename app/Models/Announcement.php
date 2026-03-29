@@ -9,7 +9,8 @@ class Announcement extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['course_id', 'user_id', 'content'];
+    // ADDED title and video_link here
+    protected $fillable = ['course_id', 'user_id', 'title', 'video_link', 'content'];
 
     // Relationships
     public function user() { return $this->belongsTo(User::class); }

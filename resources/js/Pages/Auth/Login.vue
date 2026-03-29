@@ -36,10 +36,10 @@ const submit = () => {
                     <img class="h100 w-100 -ml-32" src="/images/Logo2.png" alt="Collegio de Naujan" />
                     <div class="-ml-16 flex-shrink-0">
                         <h2 class="text-4xl font-bold tracking-tight text-white">
-                            Collegio de Naujan
+                            Colegio de Naujan
                         </h2>
                         <p class="mt-2 text-lg text-blue-100">
-                            Welcome to Collegio de Naujan <br> Learning Management System.
+                            Welcome to Colegio de Naujan <br> Learning Management System.
                         </p>
                     </div>
                 </div>

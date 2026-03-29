@@ -31,6 +31,20 @@ class AuthenticatedSessionController extends Controller
     {
         $request->authenticate();
 
+        // === SUSPENSION CHECK ===
+        if ($request->user()->status === 'suspended') {
+            $reason = $request->user()->suspension_reason ?? 'Violation of school policies.';
+            
+            Auth::guard('web')->logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            // Send them back to login with the specific error message
+            return redirect()->route('login')->withErrors([
+                'email' => 'Your account has been suspended. Reason: ' . $reason
+            ]);
+        }
+
         $request->session()->regenerate();
 
         // === ROLE CHECK ===

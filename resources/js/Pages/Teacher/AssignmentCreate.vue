@@ -12,6 +12,7 @@ const props = defineProps({
 
 const form = useForm({
     title: '',
+    type: 'assignment', // <-- Added default type
     description: '',
     due_date: '',
     points: 100,
@@ -19,7 +20,6 @@ const form = useForm({
     source: props.source 
 });
 
-// Smart Go Back Function
 const goBack = () => {
     if (window.history.length > 1) {
         window.history.back();
@@ -53,10 +53,22 @@ const submit = () => {
                 
                 <form @submit.prevent="submit" class="space-y-3">
                     
-                    <div>
-                        <label class="block text-[10px] font-bold uppercase text-slate-500 mb-1">Title <span class="text-red-500">*</span></label>
-                        <input v-model="form.title" type="text" class="w-full rounded bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white p-2 text-xs focus:ring-blue-500 focus:border-blue-500" required autofocus />
-                        <InputError class="mt-1" :message="form.errors.title" />
+                    <div class="grid grid-cols-3 gap-3">
+                        <div class="col-span-2">
+                            <label class="block text-[10px] font-bold uppercase text-slate-500 mb-1">Title <span class="text-red-500">*</span></label>
+                            <input v-model="form.title" type="text" class="w-full rounded bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white p-2 text-xs focus:ring-blue-500 focus:border-blue-500" required autofocus />
+                            <InputError class="mt-1" :message="form.errors.title" />
+                        </div>
+                        
+                        <div>
+                            <label class="block text-[10px] font-bold uppercase text-slate-500 mb-1">Type <span class="text-red-500">*</span></label>
+                            <select v-model="form.type" class="w-full rounded bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white p-2 text-xs focus:ring-blue-500 focus:border-blue-500" required>
+                                <option value="assignment">Assignment</option>
+                                <option value="quiz">Quiz</option>
+                                <option value="exam">Exam</option>
+                            </select>
+                            <InputError class="mt-1" :message="form.errors.type" />
+                        </div>
                     </div>
 
                     <div>

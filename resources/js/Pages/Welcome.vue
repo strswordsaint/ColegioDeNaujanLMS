@@ -12,14 +12,14 @@ defineProps({
 </script>
 
 <template>
-    <Head title="Welcome to Learnify" />
+    <Head title="Welcome to CDN LMS" />
 
     <div class="min-h-screen bg-gray-50 flex flex-col">
         
         <header class="bg-white shadow-sm">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
                 <div class="flex items-center">
-                    <span class="text-2xl font-bold text-blue-600">Learnify</span>
+                    <span class="text-2xl font-bold text-blue-600">CDN LMS</span>
                 </div>
 
                 <nav v-if="canLogin" class="flex gap-4">
@@ -45,11 +45,11 @@ defineProps({
             <div class="max-w-4xl mx-auto px-6 text-center">
                 
                 <h1 class="text-5xl md:text-6xl font-extrabold text-gray-900 tracking-tight mb-6">
-                    Master Your Future with <span class="text-blue-600">Learnify</span>
+                    Master Your Future with <span class="text-blue-600">Colegio de Naujan</span>
                 </h1>
                 
                 <p class="text-xl text-gray-600 mb-10 max-w-2xl mx-auto">
-                    The all-in-one Learning Management System designed for Collegio de Naujan.
+                    The all-in-one Learning Management System designed for Colegio de Naujan.
                 </p>
 
                 <div class="flex flex-col sm:flex-row justify-center gap-4">
@@ -77,7 +77,7 @@ defineProps({
 
         <footer class="bg-white border-t border-gray-200 py-8">
             <div class="max-w-7xl mx-auto px-4 text-center text-gray-500">
-                &copy; 2026 Collegio de Naujan. All rights reserved.
+                &copy; {{ new Date().getFullYear() }} Colegio de Naujan. All rights reserved.
             </div>
         </footer>
     </div>
