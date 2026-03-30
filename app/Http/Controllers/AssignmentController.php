@@ -37,9 +37,8 @@ class AssignmentController extends Controller
 
     public function create(Request $request, Course $course)
     {
-        if ($course->teacher_id !== Auth::id()) abort(403);
+        if ($course->teacher_id !== Auth::id() && Auth::user()->role !== 'admin') abort(403);
 
-        // Calculate fallback URL if history back fails
         $backUrl = $request->query('source') === 'global' 
             ? route('teacher.assignments.index') 
             : route('teacher.courses.show', $course->id);
@@ -53,16 +52,19 @@ class AssignmentController extends Controller
 
     public function store(Request $request, Course $course)
     {
+        if ($course->teacher_id !== Auth::id() && Auth::user()->role !== 'admin') abort(403);
+
         $request->validate([
             'title' => 'required|string|max:255',
-            'type' => 'required|in:assignment,quiz,exam',
+            'type' => 'required|in:assignment,activity,performance_task', 
             'description' => 'nullable|string',
             'points' => 'required|integer|min:1',
-            'due_date' => 'required|date|after:now',
+            'due_date' => 'required|date',
+            'closing_date' => 'nullable|date|after_or_equal:due_date',
             'files.*' => 'nullable|file|max:20480',
         ]);
 
-        $data = $request->only(['title', 'type', 'description', 'points', 'due_date']);
+        $data = $request->only(['title', 'type', 'description', 'points', 'due_date', 'closing_date']);
 
         if ($request->hasFile('files')) {
             $paths = [];
@@ -89,7 +91,7 @@ class AssignmentController extends Controller
 
     public function show(Request $request, Assignment $assignment)
     {
-        if ($assignment->course->teacher_id !== Auth::id()) abort(403);
+        if ($assignment->course->teacher_id !== Auth::id() && Auth::user()->role !== 'admin') abort(403);
 
         $assignment->load(['submissions.student']);
 
@@ -108,18 +110,20 @@ class AssignmentController extends Controller
 
     public function update(Request $request, Assignment $assignment)
     {
-        if ($assignment->course->teacher_id !== Auth::id()) abort(403);
+        if ($assignment->course->teacher_id !== Auth::id() && Auth::user()->role !== 'admin') abort(403);
 
         $request->validate([
             'title' => 'required|string|max:255',
+            'type' => 'required|in:assignment,activity,performance_task', 
             'description' => 'nullable|string',
             'due_date' => 'required|date',
+            'closing_date' => 'nullable|date|after_or_equal:due_date',
             'points' => 'required|integer|min:0',
             'files.*' => 'nullable|file|max:20480',
         ]);
 
-        $data = $request->only(['title', 'description', 'due_date', 'points']);
-
+        $data = $request->only(['title', 'type', 'description', 'due_date', 'closing_date', 'points']);
+        
         if ($request->hasFile('files')) {
             if ($assignment->attachment_paths) {
                 $oldPaths = json_decode($assignment->attachment_paths, true);
@@ -143,7 +147,8 @@ class AssignmentController extends Controller
 
     public function destroy(Assignment $assignment)
     {
-        if ($assignment->course->teacher_id !== Auth::id()) abort(403);
+        if ($assignment->course->teacher_id !== Auth::id() && Auth::user()->role !== 'admin') abort(403);
+        
         $courseId = $assignment->course_id;
 
         if ($assignment->attachment_paths) {
@@ -160,7 +165,7 @@ class AssignmentController extends Controller
 
     public function gradeSubmission(Request $request, Submission $submission)
     {
-        if ($submission->assignment->course->teacher_id !== Auth::id()) abort(403);
+        if ($submission->assignment->course->teacher_id !== Auth::id() && Auth::user()->role !== 'admin') abort(403);
 
         $request->validate([
             'grade' => 'required|integer|min:0|max:' . $submission->assignment->points,
@@ -172,7 +177,6 @@ class AssignmentController extends Controller
             'feedback' => $request->feedback,
         ]);
 
-        // NEW: Notify the student
         $submission->student->notify(new AssignmentGraded($submission));
 
         return back()->with('success', 'Grade saved.');

@@ -3,12 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\Course;
-use App\Models\User; // FIXED: Added missing User model import
-use App\Notifications\EnrollmentApproved; // FIXED: Added missing Notification import
+use App\Models\User;
+use App\Notifications\EnrollmentApproved;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Storage; // FIXED: Added missing Storage facade import
+use Illuminate\Support\Facades\Storage;
 
 class CourseController extends Controller
 {
@@ -30,10 +30,11 @@ class CourseController extends Controller
 
     public function store(Request $request)
     {
+        // Added 'final' to the difficulty_level to represent 4th year
         $request->validate([
             'title' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'difficulty_level' => 'required|in:beginner,intermediate,advanced',
+            'difficulty_level' => 'required|in:beginner,intermediate,advanced,final',
             'thumbnail' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048', 
         ]);
 
@@ -67,7 +68,7 @@ class CourseController extends Controller
         ]);
     }
     
-    // 1. UPDATE SHOW METHOD to load Enrollments
+    // GOD MODE ENABLED: Admins bypass ownership checks
     public function show(Course $course)
     {
         $user = Auth::user();
@@ -77,9 +78,12 @@ class CourseController extends Controller
             if (!$enrollment || $enrollment->pivot->status !== 'approved') {
                 abort(403, 'Not enrolled or pending approval.');
             }
-        } elseif ($user->role === 'teacher' && $course->teacher_id !== $user->id) {
-            abort(403);
+        } 
+        // If user is a teacher (and NOT an admin), check course ownership
+        elseif ($user->role === 'teacher' && $course->teacher_id !== $user->id) {
+            abort(403, 'Unauthorized access to another teacher\'s course.');
         }
+        // If user is admin, they bypass all checks automatically!
 
         $course->load([
             'assignments', 
@@ -100,10 +104,10 @@ class CourseController extends Controller
         return Inertia::render('Teacher/CourseManage', ['course' => $course]);
     }
 
-    // 2. ADD APPROVE METHOD
     public function approveStudent(Request $request, Course $course, $userId)
     {
-        if ($course->teacher_id !== Auth::id()) abort(403);
+        // Allow course owner OR admin
+        if ($course->teacher_id !== Auth::id() && Auth::user()->role !== 'admin') abort(403);
 
         $enrollment = $course->enrollments()->where('user_id', $userId)->firstOrFail();
         $enrollment->update(['status' => 'approved']);
@@ -114,10 +118,10 @@ class CourseController extends Controller
         return back()->with('success', 'Student approved and notified!');
     }
 
-    // 3. ADD REMOVE/REJECT METHOD
     public function removeStudent(Request $request, Course $course, $userId)
     {
-        if ($course->teacher_id !== Auth::id()) abort(403);
+        // Allow course owner OR admin
+        if ($course->teacher_id !== Auth::id() && Auth::user()->role !== 'admin') abort(403);
 
         $enrollment = $course->enrollments()->where('user_id', $userId)->firstOrFail();
         $enrollment->delete(); 
@@ -125,10 +129,10 @@ class CourseController extends Controller
         return back()->with('success', 'Student removed from class.');
     }
 
-    // EDIT SETTINGS (Title, Description, Delete)
     public function edit(Request $request, Course $course)
     {
-        if ($course->teacher_id !== Auth::id()) abort(403);
+        // Allow course owner OR admin
+        if ($course->teacher_id !== Auth::id() && Auth::user()->role !== 'admin') abort(403);
 
         $backUrl = $request->query('source') === 'manage'
             ? route('teacher.courses.show', $course->id)
@@ -142,32 +146,38 @@ class CourseController extends Controller
 
     public function update(Request $request, Course $course)
     {
-        if ($course->teacher_id !== Auth::id()) abort(403);
+        $user = Auth::user();
+        
+        // Allow course owner OR admin
+        if ($course->teacher_id !== $user->id && $user->role !== 'admin') {
+            abort(403, 'Unauthorized action.');
+        }
 
         $request->validate([
             'title' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'difficulty_level' => 'required|in:beginner,intermediate,advanced',
+            'difficulty_level' => 'required|in:beginner,intermediate,advanced,final',
+            'teacher_id' => 'nullable|exists:users,id', 
             'thumbnail' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
         ]);
 
-        $data = $request->only(['title', 'description', 'difficulty_level']);
+        $data = $request->only(['title', 'description', 'difficulty_level', 'teacher_id']);
 
         if ($request->hasFile('thumbnail')) {
             $path = $request->file('thumbnail')->store('thumbnails', 'public');
             $data['thumbnail'] = '/storage/' . $path;
         }
 
-        $course->update($data);
+        $course->update(array_filter($data)); 
 
-        return redirect()->route('teacher.courses.index');
+        return back()->with('success', 'Course updated successfully.');
     }
 
-    // 3. Delete the Course
     public function destroy(Course $course)
     {
         $user = Auth::user();
 
+        // Allow course owner OR admin
         if ($course->teacher_id !== $user->id && $user->role !== 'admin') {
             abort(403, 'Unauthorized action.');
         }
@@ -186,11 +196,14 @@ class CourseController extends Controller
     public function gradebook(Request $request, ?Course $course = null)
     {
         $teacherId = Auth::id();
+        $user = Auth::user();
         
-        $allCourses = Course::where('teacher_id', $teacherId)
-            ->select('id', 'title')
-            ->orderBy('created_at', 'desc')
-            ->get();
+        // Admins can see all courses, Teachers see their own
+        if ($user->role === 'admin') {
+            $allCourses = Course::select('id', 'title')->orderBy('created_at', 'desc')->get();
+        } else {
+            $allCourses = Course::where('teacher_id', $teacherId)->select('id', 'title')->orderBy('created_at', 'desc')->get();
+        }
 
         if ($allCourses->isEmpty()) {
             return Inertia::render('Teacher/Gradebook', [
@@ -198,7 +211,7 @@ class CourseController extends Controller
             ]);
         }
 
-        if (!$course || $course->teacher_id !== $teacherId) {
+        if (!$course || ($course->teacher_id !== $teacherId && $user->role !== 'admin')) {
             $course = Course::find($allCourses->first()->id);
         }
 

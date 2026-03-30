@@ -95,7 +95,7 @@ const sendMessage = async () => {
             leave-from-class="opacity-100 translate-y-0 scale-100"
             leave-to-class="opacity-0 translate-y-10 scale-95"
         >
-            <div v-show="isOpen" class="fixed z-50 flex flex-col bg-white dark:bg-slate-800 shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden bottom-20 left-4 right-4 h-[60vh] rounded-2xl sm:bottom-24 sm:right-6 sm:left-auto sm:w-80 sm:h-[450px] sm:rounded-xl">
+            <div v-show="isOpen" class="fixed z-50 flex flex-col bg-white dark:bg-slate-800 shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden bottom-28 left-4 right-4 h-[60vh] rounded-2xl sm:bottom-24 sm:right-6 sm:left-auto sm:w-80 sm:h-[450px] sm:rounded-xl">
                 
                 <div class="bg-blue-600 p-3 sm:p-4 flex justify-between items-center shrink-0 shadow-md">
                     <div class="flex items-center gap-3">
@@ -141,7 +141,7 @@ const sendMessage = async () => {
             </div>
         </transition>
 
-        <button @click="toggleChat" class="fixed bottom-6 right-6 z-50 group flex items-center justify-center w-12 h-12 bg-blue-600 text-white rounded-full shadow-lg hover:scale-110 transition-all focus:ring-4 focus:ring-blue-500/30">
+        <button @click="toggleChat" class="fixed bottom-24 md:bottom-6 right-4 md:right-6 z-50 group flex items-center justify-center w-12 h-12 bg-blue-600 text-white rounded-full shadow-lg hover:scale-110 transition-all focus:ring-4 focus:ring-blue-500/30">
             <span v-if="!isOpen" class="group-hover:rotate-12 transition-transform">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"></path></svg>
             </span>

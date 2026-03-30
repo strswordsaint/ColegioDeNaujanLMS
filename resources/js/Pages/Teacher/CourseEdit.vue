@@ -139,11 +139,12 @@ const deleteCourse = () => { if (confirm('Are you really sure?')) router.delete(
                             <input type="text" v-model="form.title" class="w-full bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded p-2 text-xs focus:ring-blue-500 focus:border-blue-500" required />
                         </div>
                         <div>
-                            <label class="block text-[10px] font-bold uppercase text-slate-500 mb-1">Difficulty</label>
-                            <select v-model="form.difficulty_level" class="w-full bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded p-2 text-xs focus:ring-blue-500 focus:border-blue-500">
-                                <option value="beginner">Beginner</option>
-                                <option value="intermediate">Intermediate</option>
-                                <option value="advanced">Advanced</option>
+                            <label class="block text-[10px] font-bold uppercase text-slate-500 mb-1">Year Level</label>
+                            <select v-model="form.difficulty_level" class="w-full bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded p-2 text-xs focus:ring-blue-500 focus:border-blue-500 cursor-pointer">
+                                <option value="beginner">1st Year</option>
+                                <option value="intermediate">2nd Year</option>
+                                <option value="advanced">3rd Year</option>
+                                <option value="final">4th Year</option>
                             </select>
                         </div>
                     </div>

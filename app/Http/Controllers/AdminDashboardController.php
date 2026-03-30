@@ -8,30 +8,69 @@ use Illuminate\Validation\Rules;
 use App\Models\User;
 use App\Models\Course;
 use App\Models\Enrollment;
-use App\Models\Lesson; // Added this import for the materials method
+use App\Models\Lesson;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use App\Models\Setting;
+use Carbon\Carbon;
 
 class AdminDashboardController extends Controller
 {
     public function index()
     {
-        $stats = [
-            'total_students' => User::where('role', 'student')->count(),
-            'total_teachers' => User::where('role', 'teacher')->count(),
-            'active_courses' => Course::count(),
-            'pending_enrollments' => Enrollment::where('status', 'pending')->count(),
-        ];
+        $totalUsers = User::count();
+        $totalCourses = Course::count();
+        $totalEnrollments = Enrollment::count();
+        $pendingMaterials = Lesson::where('approval_status', 'pending')->count();
+
+        $teachers = User::where('role', 'teacher')->count();
+        $students = User::where('role', 'student')->count();
+        $admins = User::where('role', 'admin')->count();
+
+        $sixMonthsAgo = Carbon::now()->subMonths(5)->startOfMonth();
+        $enrollmentsOverTime = Enrollment::where('created_at', '>=', $sixMonthsAgo)
+            ->get()
+            ->groupBy(function($date) {
+                return Carbon::parse($date->created_at)->format('M Y');
+            })
+            ->map(function($group) {
+                return $group->count();
+            });
+
+        $labels = [];
+        $data = [];
+        for ($i = 5; $i >= 0; $i--) {
+            $month = Carbon::now()->subMonths($i)->format('M Y');
+            $labels[] = $month;
+            $data[] = $enrollmentsOverTime->has($month) ? $enrollmentsOverTime[$month] : 0;
+        }
+
+        $recentCourses = Course::with('teacher')
+            ->latest()
+            ->take(5)
+            ->get();
 
         return Inertia::render('Admin/Dashboard', [
-            'stats' => $stats
+            'stats' => [
+                'totalUsers' => $totalUsers,
+                'totalCourses' => $totalCourses,
+                'totalEnrollments' => $totalEnrollments,
+                'pendingMaterials' => $pendingMaterials,
+            ],
+            'demographics' => [
+                'labels' => ['Students', 'Teachers', 'Admins'],
+                'data' => [$students, $teachers, $admins]
+            ],
+            'enrollmentTrend' => [
+                'labels' => $labels,
+                'data' => $data
+            ],
+            'recentCourses' => $recentCourses
         ]);
     }
 
     public function users()
     {
-        // Include 'status' and 'suspension_reason' in the select
         return Inertia::render('Admin/UserManagement', [
             'users' => User::select('id', 'name', 'email', 'role', 'status', 'suspension_reason', 'school_id', 'created_at')
                 ->orderBy('name')
@@ -42,14 +81,12 @@ class AdminDashboardController extends Controller
     public function toggleUserStatus(Request $request, User $user)
     {
         if ($user->status === 'suspended') {
-            // Unsuspend the user
             $user->update([
                 'status' => 'active', 
                 'suspension_reason' => null
             ]);
             return back()->with('success', "User account has been reactivated.");
         } else {
-            // Suspend the user and save the reason
             $request->validate(['reason' => 'required|string|max:500']);
             $user->update([
                 'status' => 'suspended', 
@@ -61,7 +98,6 @@ class AdminDashboardController extends Controller
 
     public function approveTeacher(User $user)
     {
-        // Only allow approval if they are actually in the pending_teacher state
         if ($user->role === 'pending_teacher') {
             $user->update(['role' => 'teacher']);
             return back()->with('success', 'Teacher account approved successfully.');
@@ -77,7 +113,6 @@ class AdminDashboardController extends Controller
             ->latest()
             ->get();
 
-        // Fetch teachers so the Admin can assign them to a new course
         $teachers = User::where('role', 'teacher')->select('id', 'name')->get();
 
         return Inertia::render('Admin/CourseOversight', [
@@ -88,7 +123,6 @@ class AdminDashboardController extends Controller
 
     public function rejectTeacher(User $user)
     {
-        // Security check: only allow rejection if the role is actually pending_teacher
         if ($user->role === 'pending_teacher') {
             $user->delete();
             return back()->with('success', 'Teacher request rejected and account removed.');
@@ -104,7 +138,7 @@ class AdminDashboardController extends Controller
             'email' => 'required|string|email|max:255|unique:users',
             'role' => 'required|in:admin,teacher,student',
             'school_id' => 'nullable|string|max:50',
-            'program' => 'nullable|string|max:100', // Only used if student
+            'program' => 'nullable|string|max:100',
             'contact_number' => 'nullable|string|max:20',
             'password' => ['required', Rules\Password::defaults()],
         ]);
@@ -117,7 +151,7 @@ class AdminDashboardController extends Controller
             'program' => $request->program,
             'contact_number' => $request->contact_number,
             'password' => Hash::make($request->password),
-            'email_verified_at' => null, // Forces them to verify the email
+            'email_verified_at' => null,
         ]);
 
         $user->sendEmailVerificationNotification();
@@ -130,7 +164,7 @@ class AdminDashboardController extends Controller
         $request->validate([
             'title' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'difficulty_level' => 'required|in:beginner,intermediate,advanced',
+            'difficulty_level' => 'required|in:beginner,intermediate,advanced,final',
             'teacher_id' => 'required|exists:users,id',
             'thumbnail' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
         ]);
@@ -159,7 +193,6 @@ class AdminDashboardController extends Controller
             ->latest()
             ->get();
 
-        // Fetch the global setting (defaults to true if it doesn't exist yet)
         $requireApproval = Setting::where('key', 'require_material_approval')->value('value') ?? 'true';
 
         return Inertia::render('Admin/MaterialApproval', [
@@ -170,7 +203,6 @@ class AdminDashboardController extends Controller
 
     public function toggleMaterialApproval(Request $request)
     {
-        // Validate password
         $request->validate([
             'password' => 'required|string',
         ]);
@@ -185,5 +217,84 @@ class AdminDashboardController extends Controller
         
         $status = $newValue === 'true' ? 'enabled' : 'disabled';
         return back()->with('success', "Material approval system is now {$status}.");
+    }
+
+    // UPDATED GRADES OVERVIEW: Now calculates Assignments, Activities, and PTs individually
+    public function gradesOverview()
+    {
+        $courses = Course::with(['teacher:id,name', 'assignments'])
+            ->with(['enrollments' => function($q) {
+                $q->where('status', 'approved')->with(['user' => function($userQ) {
+                    $userQ->with(['submissions' => function($subQ) {
+                        $subQ->with('assignment:id,type'); // Needed to categorize scores
+                    }]);
+                }]);
+            }])
+            ->latest()
+            ->get();
+
+        $formattedData = $courses->map(function ($course) {
+            
+            $assignments = $course->assignments;
+            $totalCoursePoints = $assignments->sum('points');
+            
+            // Calculate Maximums per category
+            $maxAssignment = $assignments->where('type', 'assignment')->sum('points');
+            $maxActivity = $assignments->where('type', 'activity')->sum('points');
+            $maxPT = $assignments->where('type', 'performance_task')->sum('points');
+
+            $studentsData = $course->enrollments->map(function ($enrollment) use ($course, $totalCoursePoints) {
+                $student = $enrollment->user;
+                $studentTotal = 0;
+                $assignmentScore = 0;
+                $activityScore = 0;
+                $ptScore = 0;
+
+                if ($student && $course->assignments->isNotEmpty()) {
+                     $courseAssignmentIds = $course->assignments->pluck('id')->toArray();
+                     $submissions = $student->submissions->whereIn('assignment_id', $courseAssignmentIds);
+
+                     foreach($submissions as $sub) {
+                         $grade = (float)$sub->grade;
+                         $type = $sub->assignment ? $sub->assignment->type : null;
+                         
+                         $studentTotal += $grade;
+                         if ($type === 'assignment') $assignmentScore += $grade;
+                         elseif ($type === 'activity') $activityScore += $grade;
+                         elseif ($type === 'performance_task') $ptScore += $grade;
+                     }
+                }
+
+                $percentage = $totalCoursePoints > 0 ? round(($studentTotal / $totalCoursePoints) * 100, 1) : 0;
+
+                return [
+                    'id' => $student->id ?? 0,
+                    'name' => $student->name ?? 'Unknown',
+                    'email' => $student->email ?? '',
+                    'total_score' => $studentTotal,
+                    'assignment_score' => $assignmentScore,
+                    'activity_score' => $activityScore,
+                    'pt_score' => $ptScore,
+                    'percentage' => $percentage
+                ];
+            });
+
+            return [
+                'id' => $course->id,
+                'title' => $course->title,
+                'enrollment_code' => $course->enrollment_code,
+                'teacher' => $course->teacher->name ?? 'Unassigned',
+                'difficulty_level' => $course->difficulty_level,
+                'total_points' => $totalCoursePoints,
+                'max_assignment' => $maxAssignment,
+                'max_activity' => $maxActivity,
+                'max_pt' => $maxPT,
+                'students' => $studentsData->sortByDesc('percentage')->values()->toArray() 
+            ];
+        });
+
+        return Inertia::render('Admin/GradesOverview', [
+            'courses' => $formattedData
+        ]);
     }
 }

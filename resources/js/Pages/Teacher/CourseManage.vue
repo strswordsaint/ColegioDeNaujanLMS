@@ -5,12 +5,12 @@ import { ref, computed } from 'vue';
 import Modal from '@/Components/Modal.vue';
 import InputError from '@/Components/InputError.vue';
 import RichTextEditor from '@/Components/RichTextEditor.vue';
+import { Eye, Download } from 'lucide-vue-next';
 
 const props = defineProps({ course: Object });
 const page = usePage();
 const currentUser = page.props.auth.user;
 
-// Access global requireApproval setting from Inertia shared props
 const requireApproval = computed(() => page.props.requireApproval ?? true);
 
 const activeTab = ref('students');
@@ -22,84 +22,92 @@ const showLessonModal = ref(false);
 const showAnnouncementModal = ref(false);
 const showAssignmentModal = ref(false);
 
-// --- RESUBMIT MODAL LOGIC ---
 const showResubmitModal = ref(false);
 const lessonToResubmit = ref(null);
 
-const formResubmit = useForm({
+const showUnarchiveModal = ref(false);
+const lessonToUnarchive = ref(null);
+
+const formResubmit = useForm({ 
     file: null,
+    available_from: '',
+    available_until: '' 
 });
 
-const openResubmitModal = (lesson) => {
-    lessonToResubmit.value = lesson;
-    formResubmit.clearErrors();
-    formResubmit.reset();
-    showResubmitModal.value = true;
-};
-
-const submitResubmit = () => {
-    // Uses POST because file uploads via Inertia require POST
-    // FIXED: Route name is now 'teacher.lessons.resubmit'
-    formResubmit.post(route('teacher.lessons.resubmit', lessonToResubmit.value.id), {
-        preserveScroll: true,
-        onSuccess: () => {
-            showResubmitModal.value = false;
-            lessonToResubmit.value = null;
-        }
-    });
-};
-
-// Forms
-const formLesson = useForm({ 
-    title: '', 
-    file: null,
+const formUnarchive = useForm({
     available_from: '',
     available_until: ''
 });
 
-const formAnnouncement = useForm({ 
-    title: '',
-    video_link: '',
-    content: '' 
-});
+const formatForInput = (dateStr) => {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '';
+    return new Date(d.getTime() - (d.getTimezoneOffset() * 60000)).toISOString().slice(0, 16);
+};
 
+const openResubmitModal = (lesson) => {
+    lessonToResubmit.value = lesson;
+    formResubmit.available_from = formatForInput(lesson.available_from) || formatForInput(new Date());
+    formResubmit.available_until = formatForInput(lesson.available_until);
+    formResubmit.file = null;
+    formResubmit.clearErrors();
+    showResubmitModal.value = true;
+};
+
+const openUnarchiveModal = (lesson) => {
+    lessonToUnarchive.value = lesson;
+    formUnarchive.available_from = formatForInput(lesson.available_from) || formatForInput(new Date());
+    formUnarchive.available_until = '';
+    formUnarchive.clearErrors();
+    showUnarchiveModal.value = true;
+};
+
+const submitResubmit = () => {
+    formResubmit.post(route('teacher.lessons.resubmit', lessonToResubmit.value.id), {
+        preserveScroll: true,
+        onSuccess: () => { showResubmitModal.value = false; lessonToResubmit.value = null; }
+    });
+};
+
+const submitUnarchive = () => {
+    formUnarchive.patch(route('teacher.lessons.unarchive', lessonToUnarchive.value.id), {
+        preserveScroll: true,
+        onSuccess: () => { showUnarchiveModal.value = false; lessonToUnarchive.value = null; }
+    });
+};
+
+const formLesson = useForm({ title: '', file: null, available_from: '', available_until: '' });
+const formAnnouncement = useForm({ title: '', video_link: '', content: '' });
 const formComment = useForm({ content: '' });
+const formAssignment = useForm({ title: '', type: 'assignment', description: '', points: 100, due_date: '', closing_date: '', files: [] });
 
-const formAssignment = useForm({
-    title: '',
-    type: 'assignment',
-    description: '',
-    points: 100,
-    due_date: '',
-    files: [] 
-});
-
+// The 3 Material Tabs Filter Logic
 const materialFilter = ref('active');
+
 const activeMaterials = computed(() => {
     const now = new Date();
     return props.course.lessons?.filter(l => 
-        l.approval_status !== 'approved' || 
-        (!l.available_until || new Date(l.available_until) > now)
+        l.approval_status !== 'rejected' && 
+        (l.approval_status !== 'approved' || (!l.available_until || new Date(l.available_until) > now))
     ) || [];
+});
+
+const rejectedMaterials = computed(() => {
+    return props.course.lessons?.filter(l => l.approval_status === 'rejected') || [];
 });
 
 const archivedMaterials = computed(() => {
     const now = new Date();
-    return props.course.lessons?.filter(l => 
-        l.approval_status === 'approved' && 
-        l.available_until && new Date(l.available_until) <= now
-    ) || [];
+    return props.course.lessons?.filter(l => l.approval_status === 'approved' && l.available_until && new Date(l.available_until) <= now) || [];
 });
 
-const displayedMaterials = computed(() => materialFilter.value === 'active' ? activeMaterials.value : archivedMaterials.value);
+const displayedMaterials = computed(() => {
+    if (materialFilter.value === 'active') return activeMaterials.value;
+    if (materialFilter.value === 'rejected') return rejectedMaterials.value;
+    return archivedMaterials.value;
+});
 
-const requestUnarchive = (id) => {
-    if(confirm('Request admin to unarchive this material?')) {
-        router.patch(route('teacher.lessons.unarchive', id), {}, { preserveScroll: true });
-    }
-};
-
-// Helper to extract YouTube ID
 const getYouTubeEmbedUrl = (url) => {
     if (!url) return null;
     const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
@@ -107,80 +115,61 @@ const getYouTubeEmbedUrl = (url) => {
     return (match && match[2].length === 11) ? `https://www.youtube.com/embed/${match[2]}` : null;
 };
 
-// --- STUDENTS DATA & RANKING LOGIC ---
 const pendingStudents = computed(() => props.course.enrollments ? props.course.enrollments.filter(e => e.status === 'pending') : []);
 const approvedStudentsRaw = computed(() => props.course.enrollments ? props.course.enrollments.filter(e => e.status === 'approved') : []);
 
 const processedStudents = computed(() => {
     if (!approvedStudentsRaw.value.length) return [];
-
-    // 1. Calculate scores for every student
     let studentsWithScores = approvedStudentsRaw.value.map(enrollment => {
         let totalScore = 0;
         let totalPossible = 0;
-        
         if (props.course.assignments) {
             props.course.assignments.forEach(assignment => {
                 totalPossible += parseInt(assignment.points || 0);
-                // Find submission for this specific student
                 const sub = assignment.submissions ? assignment.submissions.find(s => s.user_id === enrollment.user_id) : null;
-                if (sub && sub.grade !== null) {
-                    totalScore += parseFloat(sub.grade);
-                }
+                if (sub && sub.grade !== null) totalScore += parseFloat(sub.grade);
             });
         }
-        
-        return {
-            ...enrollment,
-            totalScore,
-            totalPossible,
-            percentage: totalPossible > 0 ? ((totalScore / totalPossible) * 100).toFixed(1) : 0
-        };
+        return { ...enrollment, totalScore, totalPossible, percentage: totalPossible > 0 ? ((totalScore / totalPossible) * 100).toFixed(1) : 0 };
     });
-
-    // 2. Sort to determine their Rank (Highest score is Rank 1)
     let sortedForRank = [...studentsWithScores].sort((a, b) => b.totalScore - a.totalScore);
     sortedForRank.forEach((s, index) => s.rank = index + 1);
-
-    // 3. Return the array sorted based on the dropdown selection
     return studentsWithScores.sort((a, b) => {
         if (studentSort.value === 'alpha_asc') return a.user.name.localeCompare(b.user.name);
-        if (studentSort.value === 'rank_desc') return b.totalScore - a.totalScore; // Rank 1 to Bottom
-        if (studentSort.value === 'rank_asc') return a.totalScore - b.totalScore; // Bottom to Rank 1
+        if (studentSort.value === 'rank_desc') return b.totalScore - a.totalScore; 
+        if (studentSort.value === 'rank_asc') return a.totalScore - b.totalScore; 
         return 0;
     });
 });
 
 const getRankClass = (rank) => {
-    if (rank === 1) return 'bg-yellow-100 text-yellow-700 border-yellow-300 border shadow-sm'; // Gold
-    if (rank === 2) return 'bg-slate-200 text-slate-700 border-slate-300 border shadow-sm'; // Silver
-    if (rank === 3) return 'bg-orange-100 text-orange-800 border-orange-300 border shadow-sm'; // Bronze
-    return 'bg-blue-50 text-blue-600 border border-blue-100'; // Standard
+    if (rank === 1) return 'bg-yellow-100 text-yellow-700 border-yellow-300 border shadow-sm'; 
+    if (rank === 2) return 'bg-slate-200 text-slate-700 border-slate-300 border shadow-sm'; 
+    if (rank === 3) return 'bg-orange-100 text-orange-800 border-orange-300 border shadow-sm'; 
+    return 'bg-blue-50 text-blue-600 border border-blue-100'; 
 };
 
-// --- ASSIGNMENTS FILTER LOGIC ---
 const filteredAssignments = computed(() => {
     const now = new Date();
     if (!props.course.assignments) return [];
-    
     return props.course.assignments.filter(a => {
         const dueDate = a.due_date ? new Date(a.due_date) : null;
         const isPastDue = dueDate && dueDate < now;
-
         if (assignmentFilter.value === 'upcoming') return !isPastDue;
         if (assignmentFilter.value === 'past_due') return isPastDue;
-        if (assignmentFilter.value === 'completed') return isPastDue; // On Teacher side, let's group closed/past assignments here
-        
+        if (assignmentFilter.value === 'completed') return isPastDue; 
         return true;
     });
 });
 
-// Methods
 const approveStudent = (userId) => router.patch(route('teacher.courses.enrollments.approve', { course: props.course.id, user: userId }), {}, { preserveScroll: true });
 const removeStudent = (userId) => { if(confirm('Remove this student from the class?')) router.delete(route('teacher.courses.enrollments.destroy', { course: props.course.id, user: userId }), { preserveScroll: true }); };
 const toggleComments = (announcement) => { announcement.showComments = !announcement.showComments; };
 const copyCode = () => { navigator.clipboard.writeText(props.course.enrollment_code); alert('Copied!'); };
-const deleteItem = (url) => { if (confirm('Are you sure?')) router.delete(url, { preserveScroll: true }); };
+
+const deleteItem = (url, skipConfirm = false) => { 
+    if (skipConfirm || confirm('Are you sure?')) router.delete(url, { preserveScroll: true }); 
+};
 
 const submitAnnouncement = () => formAnnouncement.post(route('teacher.announcements.store', props.course.id), { onSuccess: () => { showAnnouncementModal.value = false; formAnnouncement.reset(); }});
 const submitComment = (announcementId) => formComment.post(route('comments.store', announcementId), { onSuccess: () => { formComment.reset(); const post = props.course.announcements.find(a => a.id === announcementId); if(post) post.showComments = true; }, preserveScroll: true });
@@ -210,7 +199,7 @@ const submitLesson = () => formLesson.post(route('teacher.lessons.store', props.
 
                 <button @click="showAssignmentModal = true" class="group relative flex items-center justify-center w-10 h-10 bg-white dark:bg-slate-800 rounded-full border border-slate-200 dark:border-slate-700 text-blue-600 hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-slate-700 transition shadow-sm">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                    <span class="absolute left-full ml-2 px-2 py-1 bg-slate-800 text-white text-[9px] font-bold rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap shadow-lg">Create Assignment</span>
+                    <span class="absolute left-full ml-2 px-2 py-1 bg-slate-800 text-white text-[9px] font-bold rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap shadow-lg">Create Task</span>
                 </button>
 
                 <button @click="showLessonModal = true" class="group relative flex items-center justify-center w-10 h-10 bg-white dark:bg-slate-800 rounded-full border border-slate-200 dark:border-slate-700 text-yellow-600 hover:border-yellow-500 hover:bg-yellow-50 dark:hover:bg-slate-700 transition shadow-sm">
@@ -227,7 +216,7 @@ const submitLesson = () => formLesson.post(route('teacher.lessons.store', props.
                             Students <span v-if="pendingStudents.length" class="bg-red-500 text-white text-[8px] px-1 rounded-full">{{ pendingStudents.length }}</span>
                         </button>
                         <button @click="activeTab = 'announcements'" class="pb-1.5 text-xs font-bold border-b-2 transition-colors" :class="activeTab === 'announcements' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500'">Announcements</button>
-                        <button @click="activeTab = 'assignments'" class="pb-1.5 text-xs font-bold border-b-2 transition-colors" :class="activeTab === 'assignments' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500'">Assignments</button>
+                        <button @click="activeTab = 'assignments'" class="pb-1.5 text-xs font-bold border-b-2 transition-colors" :class="activeTab === 'assignments' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500'">Tasks</button>
                         <button @click="activeTab = 'materials'" class="pb-1.5 text-xs font-bold border-b-2 transition-colors" :class="activeTab === 'materials' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500'">Materials</button>
                     </div>
                 </div>
@@ -435,6 +424,7 @@ const submitLesson = () => formLesson.post(route('teacher.lessons.store', props.
                             <div class="flex-1 min-w-0">
                                 <h4 class="text-[13px] font-bold text-slate-900 dark:text-white truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition">{{ assignment.title }}</h4>
                                 <div class="flex items-center gap-2 mt-1">
+                                    <span class="text-[9px] font-black text-slate-500 uppercase bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded">{{ assignment.type.replace('_', ' ') }}</span>
                                     <span class="text-[10px] font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded">Due: {{ assignment.due_date ? new Date(assignment.due_date).toLocaleDateString() : 'No Date' }}</span>
                                     <span class="text-[10px] font-bold text-blue-600 dark:text-blue-400">{{ assignment.points }} pts</span>
                                 </div>
@@ -452,7 +442,12 @@ const submitLesson = () => formLesson.post(route('teacher.lessons.store', props.
                         <button @click="materialFilter = 'active'" 
                             class="flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all"
                             :class="materialFilter === 'active' ? 'bg-white dark:bg-slate-700 text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'">
-                            Active Materials
+                            Active
+                        </button>
+                        <button @click="materialFilter = 'rejected'" 
+                            class="flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all flex items-center justify-center gap-1.5"
+                            :class="materialFilter === 'rejected' ? 'bg-white dark:bg-slate-700 text-red-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'">
+                            Rejected <span v-if="rejectedMaterials.length" class="bg-red-100 text-red-600 dark:bg-red-900/50 dark:text-red-400 px-1.5 py-0.5 rounded-full text-[8px]">{{ rejectedMaterials.length }}</span>
                         </button>
                         <button @click="materialFilter = 'archived'" 
                             class="flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all flex items-center justify-center gap-1.5"
@@ -463,8 +458,8 @@ const submitLesson = () => formLesson.post(route('teacher.lessons.store', props.
 
                     <div v-if="displayedMaterials.length > 0" class="divide-y divide-slate-100 dark:divide-slate-700 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
                         <div v-for="lesson in displayedMaterials" :key="lesson.id" class="flex flex-col sm:flex-row sm:items-center justify-between p-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition group gap-3">
-                            <div class="flex items-center gap-3 min-w-0 w-full">
-                                <div class="shrink-0 p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg text-yellow-600 dark:text-yellow-400">
+                            <div class="flex items-center gap-4 min-w-0 w-full sm:w-auto">
+                                <div class="shrink-0 p-2.5 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg text-yellow-600 dark:text-yellow-400">
                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
                                 </div>
                                 <div class="flex flex-col min-w-0 w-full">
@@ -479,7 +474,7 @@ const submitLesson = () => formLesson.post(route('teacher.lessons.store', props.
 
                                     <div class="flex items-center gap-2 text-[9px] font-bold text-slate-400 uppercase tracking-wider">
                                         <span v-if="lesson.available_from">From: {{ new Date(lesson.available_from).toLocaleDateString() }}</span>
-                                        <span v-if="lesson.available_until && materialFilter === 'active'" class="text-red-400">Closes: {{ new Date(lesson.available_until).toLocaleDateString() }}</span>
+                                        <span v-if="lesson.available_until && materialFilter !== 'archived'" class="text-red-400">Closes: {{ new Date(lesson.available_until).toLocaleDateString() }}</span>
                                         <span v-if="materialFilter === 'archived'" class="text-slate-500">Archived On: {{ new Date(lesson.available_until).toLocaleDateString() }}</span>
                                         <span v-if="!lesson.available_from && !lesson.available_until && materialFilter === 'active'">Always Available</span>
                                     </div>
@@ -489,27 +484,33 @@ const submitLesson = () => formLesson.post(route('teacher.lessons.store', props.
                                             <svg class="w-3 h-3 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
                                             <span class="text-[9px] font-black uppercase text-red-600 tracking-widest">Admin Feedback</span>
                                         </div>
-                                        <p class="text-[10px] text-red-700 dark:text-red-300 italic">{{ lesson.rejection_note || 'No specific reason provided. Please review guidelines.' }}</p>
+                                        <p class="text-[10px] text-red-700 dark:text-red-300 italic">{{ lesson.rejection_note || lesson.rejection_reason || lesson.reason || 'No specific reason provided. Please review guidelines.' }}</p>
                                     </div>
                                 </div>
                             </div>
                             
-                            <div class="flex items-center gap-2 shrink-0 self-end sm:self-auto">
-                                <a :href="`/storage/${lesson.attachment_path}`" target="_blank" class="text-[9px] font-black uppercase tracking-widest bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-3 py-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-600 transition shadow-sm flex items-center gap-1">
-                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg> View
+                            <div class="flex flex-wrap items-center justify-end gap-1.5 w-full sm:w-auto shrink-0 mt-2 sm:mt-0">
+                                
+                                <a :href="`/storage/${lesson.attachment_path}`" target="_blank" class="p-1.5 text-slate-500 bg-slate-50 hover:text-blue-600 hover:bg-blue-50 dark:bg-slate-900/50 dark:text-slate-400 dark:hover:text-blue-400 dark:hover:bg-blue-900/30 rounded transition shadow-sm border border-slate-200 dark:border-slate-700" title="View">
+                                    <Eye class="w-3.5 h-3.5" />
                                 </a>
-                                <a :href="`/storage/${lesson.attachment_path}`" download class="text-[9px] font-black uppercase tracking-widest bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-3 py-1.5 rounded hover:bg-blue-100 dark:hover:bg-blue-900/50 transition shadow-sm flex items-center gap-1">
-                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg> Download
+                                <a :href="`/storage/${lesson.attachment_path}`" download class="p-1.5 text-emerald-600 bg-emerald-50 hover:text-white hover:bg-emerald-500 dark:bg-emerald-900/30 dark:text-emerald-500 dark:hover:text-white dark:hover:bg-emerald-600 rounded transition shadow-sm border border-emerald-200 dark:border-emerald-800" title="Download">
+                                    <Download class="w-3.5 h-3.5" />
                                 </a>                             
 
-                                <button v-if="lesson.approval_status === 'rejected'" @click="openResubmitModal(lesson)" class="text-[9px] font-black uppercase tracking-widest bg-blue-600 text-white border border-blue-600 px-3 py-1.5 rounded hover:bg-blue-500 transition shadow-sm">Resubmit</button>
-
-                                <button v-if="materialFilter === 'archived'" @click="requestUnarchive(lesson.id)" class="text-[9px] font-black uppercase tracking-widest bg-blue-50 text-blue-600 border border-blue-200 px-3 py-1.5 rounded hover:bg-blue-100 transition shadow-sm">Req Unarchive</button>
+                                <button v-if="lesson.approval_status === 'rejected'" @click="openResubmitModal(lesson)" class="text-[9px] font-bold uppercase tracking-wide bg-blue-600 text-white border border-blue-600 px-3 py-1.5 rounded hover:bg-blue-500 transition shadow-sm">
+                                    Resubmit
+                                </button>
                                 
-                                <button @click="deleteItem(route('teacher.lessons.destroy', lesson.id))" class="text-slate-300 hover:text-red-500 dark:text-slate-600 dark:hover:text-red-400 transition p-1.5 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20">
+                                <button v-if="materialFilter === 'archived'" @click="openUnarchiveModal(lesson)" class="text-[9px] font-bold uppercase tracking-wide bg-emerald-100 text-emerald-700 border border-emerald-200 px-2 py-1.5 rounded hover:bg-emerald-200 transition shadow-sm">
+                                    Req Unarchive
+                                </button>
+                                
+                                <button @click="deleteItem(route('teacher.lessons.destroy', lesson.id), true)" class="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition" title="Delete Permanently">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                                 </button>
                             </div>
+
                         </div>
                     </div>
                     <div v-else class="text-center py-10 bg-slate-50 dark:bg-slate-900/30 border border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
@@ -519,7 +520,39 @@ const submitLesson = () => formLesson.post(route('teacher.lessons.store', props.
 
             </div>
         </div>
-        
+
+        <Modal :show="showUnarchiveModal" @close="showUnarchiveModal = false" maxWidth="sm">
+            <div class="p-5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-lg">
+                <h3 class="font-black text-sm text-slate-900 dark:text-white uppercase tracking-tight mb-4 flex items-center gap-2">
+                    <svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    Request Unarchive
+                </h3>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">
+                    Set a new archive date for <span class="font-bold text-slate-800 dark:text-slate-200">"{{ lessonToUnarchive?.title }}"</span> before sending the request to the admin.
+                </p>
+
+                <form @submit.prevent="submitUnarchive" class="space-y-4">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1">Show From *</label>
+                            <input v-model="formUnarchive.available_from" type="datetime-local" class="w-full flex h-9 rounded-md border border-slate-200 bg-transparent px-3 py-1 text-[10px] font-medium shadow-sm dark:border-slate-800 text-slate-700 dark:text-slate-300" required>
+                            <InputError class="mt-1 text-[9px]" :message="formUnarchive.errors.available_from" />
+                        </div>
+                        <div>
+                            <label class="block text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1">New Archive Date *</label>
+                            <input v-model="formUnarchive.available_until" type="datetime-local" class="w-full flex h-9 rounded-md border border-slate-200 bg-transparent px-3 py-1 text-[10px] font-medium shadow-sm dark:border-slate-800 text-slate-700 dark:text-slate-300" required>
+                            <InputError class="mt-1 text-[9px]" :message="formUnarchive.errors.available_until" />
+                        </div>
+                    </div>
+
+                    <div class="flex justify-end gap-2 mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+                        <button type="button" @click="showUnarchiveModal = false" class="text-[10px] text-slate-500 px-3 py-1.5 font-bold hover:text-slate-700 uppercase tracking-widest">Cancel</button>
+                        <button :disabled="formUnarchive.processing" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest shadow-sm transition-colors">Send Request</button>
+                    </div>
+                </form>
+            </div>
+        </Modal>
+
         <Modal :show="showLessonModal" @close="showLessonModal = false" maxWidth="sm">
             <div class="p-5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-lg">
                 <h3 class="font-black text-sm text-slate-900 dark:text-white uppercase tracking-tight mb-4 flex items-center gap-2">
@@ -566,9 +599,22 @@ const submitLesson = () => formLesson.post(route('teacher.lessons.store', props.
                     <svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
                     Resubmit Material
                 </h3>
-                <p class="text-xs text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">Please upload a corrected version of <span class="font-bold text-slate-800 dark:text-slate-200">"{{ lessonToResubmit?.title }}"</span> based on the admin's feedback.</p>
+                <p class="text-[11px] text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">Upload a corrected file and confirm the active dates for <span class="font-bold text-slate-800 dark:text-slate-200">"{{ lessonToResubmit?.title }}"</span>.</p>
                 
                 <form @submit.prevent="submitResubmit" class="space-y-4">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1">Show From *</label>
+                            <input v-model="formResubmit.available_from" type="datetime-local" class="w-full flex h-9 rounded-md border border-slate-200 bg-transparent px-3 py-1 text-[10px] font-medium shadow-sm dark:border-slate-800 text-slate-700 dark:text-slate-300" required>
+                            <InputError class="mt-1 text-[9px]" :message="formResubmit.errors.available_from" />
+                        </div>
+                        <div>
+                            <label class="block text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1">Archive On *</label>
+                            <input v-model="formResubmit.available_until" type="datetime-local" class="w-full flex h-9 rounded-md border border-slate-200 bg-transparent px-3 py-1 text-[10px] font-medium shadow-sm dark:border-slate-800 text-slate-700 dark:text-slate-300" required>
+                            <InputError class="mt-1 text-[9px]" :message="formResubmit.errors.available_until" />
+                        </div>
+                    </div>
+
                     <div>
                         <label class="block text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1">Select New File (Max: 15MB) *</label>
                         <input type="file" @input="formResubmit.file = $event.target.files[0]" accept=".pdf,.doc,.docx,.ppt,.pptx,.jpg,.png,.zip" class="w-full text-[10px] text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[10px] file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer border border-slate-200 dark:border-slate-800 rounded-md p-1" required>
@@ -577,7 +623,7 @@ const submitLesson = () => formLesson.post(route('teacher.lessons.store', props.
 
                     <div class="flex justify-end gap-2 mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
                         <button type="button" @click="showResubmitModal = false" class="text-[10px] text-slate-500 px-3 py-1.5 font-bold hover:text-slate-700 uppercase tracking-widest">Cancel</button>
-                        <button :disabled="formResubmit.processing" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest shadow-sm transition-colors">Submit</button>
+                        <button :disabled="formResubmit.processing" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest shadow-sm transition-colors">Submit Fix</button>
                     </div>
                 </form>
             </div>
@@ -608,56 +654,67 @@ const submitLesson = () => formLesson.post(route('teacher.lessons.store', props.
         </Modal>
 
         <Modal :show="showAssignmentModal" @close="showAssignmentModal = false" maxWidth="md">
-            <div class="p-4 bg-white dark:bg-slate-800 rounded-lg">
-                <h3 class="font-bold text-sm text-slate-900 dark:text-white mb-3">Create Assignment</h3>
-                <form @submit.prevent="submitAssignment" class="space-y-2.5">
-                    <div class="grid grid-cols-3 gap-2">
-                        <div class="col-span-2">
-                            <label class="block text-[9px] font-bold uppercase text-slate-500 mb-0.5">Title</label>
-                            <input v-model="formAssignment.title" type="text" class="w-full rounded bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white p-1.5 text-[10px] focus:ring-blue-500" required autofocus />
-                            <InputError class="mt-1 text-[9px]" :message="formAssignment.errors.title" />
+            <div class="p-5 bg-white dark:bg-slate-800 rounded-lg shadow-lg">
+                <h3 class="font-black text-sm text-slate-900 dark:text-white uppercase tracking-tight mb-4 flex items-center gap-2">
+                    <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    Create Task
+                </h3>
+                <form @submit.prevent="submitAssignment" class="space-y-3.5">
+                    
+                    <div>
+                        <label class="block text-[9px] font-black uppercase text-slate-500 mb-1">Title *</label>
+                        <input v-model="formAssignment.title" type="text" class="w-full rounded-md bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white p-2 text-xs focus:ring-2 focus:ring-blue-500 transition" required autofocus />
+                        <InputError class="mt-1 text-[9px]" :message="formAssignment.errors.title" />
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[9px] font-black uppercase text-slate-500 mb-1">Task Type *</label>
+                            <select v-model="formAssignment.type" class="w-full rounded-md bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white p-2 text-xs focus:ring-2 focus:ring-blue-500 transition cursor-pointer" required>
+                                <option value="assignment">Assignment</option>
+                                <option value="activity">Activity</option>
+                                <option value="performance_task">Performance Task</option>
+                            </select>
                         </div>
                         <div>
-                            <label class="block text-[9px] font-bold uppercase text-slate-500 mb-0.5">Type</label>
-                            <select v-model="formAssignment.type" class="w-full rounded bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white p-1.5 text-[10px] focus:ring-blue-500" required>
-                                <option value="assignment">Assignment</option>
-                                <option value="quiz">Quiz</option>
-                                <option value="exam">Exam</option>
-                            </select>
-                            <InputError class="mt-1 text-[9px]" :message="formAssignment.errors.type" />
+                            <label class="block text-[9px] font-black uppercase text-slate-500 mb-1">Points *</label>
+                            <input v-model="formAssignment.points" type="number" min="1" class="w-full rounded-md bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white p-2 text-xs focus:ring-2 focus:ring-blue-500 transition" required />
                         </div>
                     </div>
+                    
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[9px] font-black uppercase text-slate-500 mb-1">Due Date (Soft Deadline) *</label>
+                            <input v-model="formAssignment.due_date" type="datetime-local" class="w-full rounded-md bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white p-2 text-[10px] font-bold focus:ring-2 focus:ring-blue-500 transition" required />
+                        </div>
+                        <div>
+                            <label class="block text-[9px] font-black uppercase text-slate-500 mb-1">Closing Date (Hard Deadline)</label>
+                            <input v-model="formAssignment.closing_date" type="datetime-local" class="w-full rounded-md bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white p-2 text-[10px] font-bold focus:ring-2 focus:ring-blue-500 transition" />
+                        </div>
+                    </div>
+
                     <div>
-                         <label class="block text-[9px] font-bold uppercase text-slate-500 mb-0.5">Instructions</label>
-                        <textarea v-model="formAssignment.description" class="w-full rounded bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white p-1.5 text-[10px] h-16 focus:ring-blue-500 resize-none" placeholder="Instructions..."></textarea>
+                        <label class="block text-[9px] font-black uppercase text-slate-500 mb-1">Instructions</label>
+                        <textarea v-model="formAssignment.description" class="w-full rounded-md bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white p-2 text-xs h-20 focus:ring-2 focus:ring-blue-500 resize-none transition" placeholder="Write instructions here..."></textarea>
                         <InputError class="mt-1 text-[9px]" :message="formAssignment.errors.description" />
                     </div>
+
                     <div>
-                        <label class="block text-[9px] font-bold uppercase text-slate-500 mb-0.5">Attachments (Optional)</label>
-                        <div class="relative">
-                            <input type="file" multiple @change="e => formAssignment.files = Array.from(e.target.files)" class="block w-full text-[9px] text-slate-500 file:mr-2 file:py-0.5 file:px-1.5 file:rounded file:border-0 file:text-[9px] file:font-bold file:bg-blue-50 file:text-blue-600 hover:file:bg-blue-100 cursor-pointer bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded" />
-                        </div>
-                        <div v-if="formAssignment.files && formAssignment.files.length > 0" class="mt-1 space-y-0.5">
-                            <div v-for="(file, index) in formAssignment.files" :key="index" class="text-[9px] text-slate-600 dark:text-slate-400 flex items-center gap-1">
-                                <svg class="w-2.5 h-2.5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path></svg>
-                                {{ file.name }}
+                        <label class="block text-[9px] font-black uppercase text-slate-500 mb-1">Attachments (Optional)</label>
+                        <input type="file" multiple @change="e => formAssignment.files = Array.from(e.target.files)" class="block w-full text-[10px] text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[10px] file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer border border-slate-200 dark:border-slate-700 rounded-md p-1 transition" />
+                        
+                        <div v-if="formAssignment.files && formAssignment.files.length > 0" class="mt-2 space-y-1 max-h-24 overflow-y-auto">
+                            <div v-for="(file, index) in formAssignment.files" :key="index" class="text-[9px] font-bold text-slate-600 dark:text-slate-300 flex items-center gap-1.5 bg-slate-50 dark:bg-slate-800 p-1.5 rounded border border-slate-100 dark:border-slate-700">
+                                <svg class="w-3 h-3 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path></svg>
+                                <span class="truncate">{{ file.name }}</span>
                             </div>
                         </div>
                         <InputError class="mt-1 text-[9px]" :message="formAssignment.errors.files" />
                     </div>
-                    <div class="grid grid-cols-2 gap-2">
-                        <div>
-                            <label class="block text-[9px] font-bold uppercase text-slate-500 mb-0.5">Points</label>
-                            <input v-model="formAssignment.points" type="number" class="w-full rounded bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white p-1.5 text-[10px] focus:ring-blue-500" />
-                        </div>
-                        <div>
-                            <label class="block text-[9px] font-bold uppercase text-slate-500 mb-0.5">Due Date</label>
-                            <input v-model="formAssignment.due_date" type="datetime-local" class="w-full rounded bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white p-1.5 text-[10px] focus:ring-blue-500" />
-                        </div>
-                    </div>
-                    <div class="flex justify-end gap-2 mt-2">
-                        <button type="button" @click="showAssignmentModal = false" class="text-[10px] text-slate-500 px-2 py-1 font-bold hover:text-slate-700">Cancel</button>
-                        <button :disabled="formAssignment.processing" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded text-[10px] font-bold shadow-sm">Create</button>
+
+                    <div class="flex justify-end gap-2 pt-4 mt-2 border-t border-slate-100 dark:border-slate-800">
+                        <button type="button" @click="showAssignmentModal = false" class="text-[10px] text-slate-500 px-3 py-1.5 font-black uppercase tracking-widest hover:text-slate-700 transition">Cancel</button>
+                        <button :disabled="formAssignment.processing" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest shadow-sm transition">Create Task</button>
                     </div>
                 </form>
             </div>
@@ -691,5 +748,12 @@ const submitLesson = () => formLesson.post(route('teacher.lessons.store', props.
     padding-left: 1rem;
     margin-top: 0.25rem;
     margin-bottom: 0.25rem;
+}
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;
+}
+.scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
 }
 </style>

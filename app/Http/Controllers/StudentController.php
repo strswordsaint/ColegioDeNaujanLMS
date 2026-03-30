@@ -36,24 +36,24 @@ class StudentController extends Controller
             ])
             ->get();
 
-            foreach ($enrolledCourses as $course) {
-                $totalPoints = 0;
-                $earnedPoints = 0;
-                $hasGradedWork = false;
-                $now = now();
+        foreach ($enrolledCourses as $course) {
+            $totalPoints = 0;
+            $earnedPoints = 0;
+            $hasGradedWork = false;
+            $now = now();
 
-                foreach ($course->assignments as $assign) {
-                    $submission = $assign->submissions->first();
-                    
-                    if ($submission && $submission->grade !== null) {
-                        $totalPoints += $assign->points;
-                        $earnedPoints += $submission->grade;
-                        $hasGradedWork = true;
-                    } elseif (!$submission && $assign->due_date < $now) {
-                        $totalPoints += $assign->points;
-                        $hasGradedWork = true;
-                    }
+            foreach ($course->assignments as $assign) {
+                $submission = $assign->submissions->first();
+                
+                if ($submission && $submission->grade !== null) {
+                    $totalPoints += $assign->points;
+                    $earnedPoints += $submission->grade;
+                    $hasGradedWork = true;
+                } elseif (!$submission && $assign->due_date < $now) {
+                    $totalPoints += $assign->points;
+                    $hasGradedWork = true;
                 }
+            }
 
             // Calculate Grade
             $average = ($hasGradedWork && $totalPoints > 0) ? ($earnedPoints / $totalPoints) * 100 : 100;
@@ -232,6 +232,11 @@ class StudentController extends Controller
                            
         if (!$isApproved) abort(403, 'You are not approved in this course.');
 
+        // NEW: Check if Hard Deadline (Closing Date) has passed
+        if ($assignment->closing_date && now()->greaterThan($assignment->closing_date)) {
+            return back()->with('error', 'This task is locked. The final deadline has passed and no further submissions are accepted.');
+        }
+
         $request->validate([
             'files' => 'nullable|array',
             'files.*' => 'file|mimes:pdf,doc,docx,xls,xlsx,ppt,pptx,txt,zip,jpg,jpeg,png|max:10240', 
@@ -255,7 +260,7 @@ class StudentController extends Controller
         Submission::updateOrCreate(
             ['assignment_id' => $assignment->id, 'student_id' => Auth::id()],
             [
-                'file_paths' => !empty($paths) ? $paths : null, 
+                'file_paths' => !empty($paths) ? json_encode($paths) : null, // Ensure json_encode for arrays
                 'text_content' => $request->text_content,
                 'submitted_at' => now()
             ]
@@ -266,6 +271,11 @@ class StudentController extends Controller
     
     public function unsubmit(Assignment $assignment)
     {
+        // NEW: Check if Hard Deadline (Closing Date) has passed
+        if ($assignment->closing_date && now()->greaterThan($assignment->closing_date)) {
+            return back()->with('error', 'This task is locked. You cannot undo a submission after the final deadline has passed.');
+        }
+
         $submission = Submission::where('assignment_id', $assignment->id)
                                 ->where('student_id', Auth::id())
                                 ->first();

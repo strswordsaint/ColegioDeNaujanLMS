@@ -3,11 +3,9 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, useForm, router } from '@inertiajs/vue3';
 import { ref, computed } from 'vue';
 import Modal from '@/Components/Modal.vue';
-import PrimaryButton from '@/Components/PrimaryButton.vue';
-import DangerButton from '@/Components/DangerButton.vue';
 import { 
-    ChevronLeft, Calendar, Clock, Trophy, 
-    FileText, Edit3, Trash2, Paperclip, ExternalLink 
+    ChevronLeft, Clock, Trophy, 
+    FileText, Edit3, Trash2, Paperclip, ExternalLink, Eye, Download 
 } from 'lucide-vue-next';
 
 const props = defineProps({
@@ -40,8 +38,10 @@ const formatDateForInput = (dateString) => {
 const editForm = useForm({
     title: props.assignment.title,
     description: props.assignment.description,
+    type: props.assignment.type || 'assignment',
     points: props.assignment.points,
     due_date: formatDateForInput(props.assignment.due_date),
+    closing_date: formatDateForInput(props.assignment.closing_date),
     files: [], 
 });
 
@@ -63,9 +63,11 @@ const currentFilePath = computed(() => {
 });
 
 const updateAssignment = () => {
-    editForm.post(route('teacher.assignments.update', props.assignment.id), {
-        _method: 'PATCH',
-        onSuccess: () => isEditing.value = false,
+    editForm.patch(route('teacher.assignments.update', props.assignment.id), {
+        preserveScroll: true,
+        onSuccess: () => {
+            isEditing.value = false;
+        },
     });
 };
 
@@ -101,10 +103,15 @@ const submitGrade = () => {
                     <ChevronLeft class="w-3 h-3 text-slate-300 shrink-0" />
                     <span class="text-[9px] font-black uppercase text-blue-500 tracking-widest shrink-0">Task</span>
                 </nav>
-                <h1 class="text-lg sm:text-xl font-black text-slate-900 dark:text-white tracking-tight leading-tight">{{ assignment.title }}</h1>
+                <div class="flex items-center gap-2">
+                    <span class="text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700 text-slate-500 bg-slate-50 dark:bg-slate-900 shrink-0">
+                        {{ assignment.type.replace('_', ' ') }}
+                    </span>
+                    <h1 class="text-lg sm:text-xl font-black text-slate-900 dark:text-white tracking-tight leading-tight truncate">{{ assignment.title }}</h1>
+                </div>
             </div>
             
-            <button @click="goBack" class="mt-3 md:mt-0 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-[10px] font-bold hover:bg-slate-50 dark:hover:bg-slate-700 transition shadow-sm w-full md:w-auto">
+            <button @click="goBack" class="mt-3 md:mt-0 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-[10px] font-bold hover:bg-slate-50 dark:hover:bg-slate-700 transition shadow-sm w-full md:w-auto shrink-0">
                 <ChevronLeft class="w-3 h-3" /> Back
             </button>
         </div>
@@ -126,7 +133,9 @@ const submitGrade = () => {
         </div>
 
         <div class="min-h-[400px]">
+            
             <div v-if="activeTab === 'details'" class="max-w-5xl animate-in fade-in slide-in-from-bottom-2 duration-300">
+                
                 <div v-if="!isEditing" class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     
                     <div class="md:col-span-2 space-y-4">
@@ -158,6 +167,7 @@ const submitGrade = () => {
 
                     <div class="space-y-3">
                         <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 shadow-sm space-y-4">
+                            
                             <div class="flex items-center gap-3">
                                 <div class="w-8 h-8 rounded-lg bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center text-orange-600 shrink-0">
                                     <Trophy class="w-4 h-4" />
@@ -182,6 +192,22 @@ const submitGrade = () => {
                                     </p>
                                 </div>
                             </div>
+
+                            <div v-if="assignment.closing_date" class="flex items-center gap-3 border-t border-slate-100 dark:border-slate-700 pt-3">
+                                <div class="w-8 h-8 rounded-lg bg-red-100 dark:bg-red-900/30 flex items-center justify-center text-red-600 shrink-0">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                                </div>
+                                <div>
+                                    <p class="text-[9px] font-black text-red-500 uppercase tracking-widest">Hard Deadline (Closes)</p>
+                                    <p class="text-[11px] font-bold text-slate-700 dark:text-slate-200 leading-tight">
+                                        {{ new Date(assignment.closing_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) }}
+                                    </p>
+                                    <p class="text-[9px] text-slate-500 font-medium">
+                                        {{ 'at ' + new Date(assignment.closing_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}
+                                    </p>
+                                </div>
+                            </div>
+
                         </div>
 
                         <div class="flex flex-col sm:flex-row md:flex-col gap-2">
@@ -201,29 +227,47 @@ const submitGrade = () => {
                         <h2 class="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">Edit Assignment</h2>
                     </div>
 
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div class="sm:col-span-2">
+                    <div class="grid grid-cols-1 gap-3">
+                        <div>
                             <label class="block text-[9px] font-black uppercase text-slate-500 mb-1 tracking-widest">Title</label>
-                            <input v-model="editForm.title" type="text" class="w-full bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-lg p-2 text-xs focus:ring-2 focus:ring-blue-500 focus:border-transparent transition" />
+                            <input v-model="editForm.title" type="text" class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-lg p-2 text-xs focus:ring-2 focus:ring-blue-500 transition" required />
                         </div>
-                        <div>
-                            <label class="block text-[9px] font-black uppercase text-slate-500 mb-1 tracking-widest">Points</label>
-                            <input v-model="editForm.points" type="number" class="w-full bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-lg p-2 text-xs focus:ring-2 focus:ring-blue-500 focus:border-transparent transition" />
+                        
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-[9px] font-black uppercase text-slate-500 mb-1 tracking-widest">Type</label>
+                                <select v-model="editForm.type" class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-lg p-2 text-xs focus:ring-2 focus:ring-blue-500 transition cursor-pointer" required>
+                                    <option value="assignment">Assignment</option>
+                                    <option value="activity">Activity</option>
+                                    <option value="performance_task">Performance Task</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-[9px] font-black uppercase text-slate-500 mb-1 tracking-widest">Points</label>
+                                <input v-model="editForm.points" type="number" min="0" class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-lg p-2 text-xs focus:ring-2 focus:ring-blue-500 transition" required />
+                            </div>
                         </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-[9px] font-black uppercase text-slate-500 mb-1 tracking-widest">Due Date (Soft Deadline)</label>
+                                <input v-model="editForm.due_date" type="datetime-local" class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-lg p-2 text-[10px] font-bold focus:ring-2 focus:ring-blue-500 transition dark:[color-scheme:dark]" required />
+                            </div>
+                            <div>
+                                <label class="block text-[9px] font-black uppercase text-slate-500 mb-1 tracking-widest">Closing Date (Hard Deadline)</label>
+                                <input v-model="editForm.closing_date" type="datetime-local" class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-lg p-2 text-[10px] font-bold focus:ring-2 focus:ring-blue-500 transition dark:[color-scheme:dark]" />
+                            </div>
+                        </div>
+
                         <div>
-                            <label class="block text-[9px] font-black uppercase text-slate-500 mb-1 tracking-widest">Due Date</label>
-                            <input v-model="editForm.due_date" type="datetime-local" class="w-full bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-lg p-2 text-[10px] font-bold focus:ring-2 focus:ring-blue-500 focus:border-transparent transition dark:[color-scheme:dark]" />
+                            <label class="block text-[9px] font-black uppercase text-slate-500 mb-1 tracking-widest">Instructions</label>
+                            <textarea v-model="editForm.description" class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-lg p-2 text-xs h-24 focus:ring-2 focus:ring-blue-500 transition resize-none"></textarea>
                         </div>
                     </div>
 
-                    <div>
-                        <label class="block text-[9px] font-black uppercase text-slate-500 mb-1 tracking-widest">Instructions</label>
-                        <textarea v-model="editForm.description" class="w-full bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-lg p-2 text-xs h-24 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition resize-none"></textarea>
-                    </div>
-
-                    <div class="pt-4 border-t border-slate-100 dark:border-slate-700 flex justify-end gap-2">
-                        <button type="button" @click="isEditing = false" class="px-4 py-2 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-slate-700 transition">Cancel</button>
-                        <button type="submit" :disabled="editForm.processing" class="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-black uppercase tracking-widest rounded-lg shadow-sm transition">Save</button>
+                    <div class="pt-4 border-t border-slate-100 dark:border-slate-700 flex justify-end gap-2 mt-2">
+                        <button type="button" @click="isEditing = false" class="px-4 py-2 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition">Cancel</button>
+                        <button type="submit" :disabled="editForm.processing" class="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-black uppercase tracking-widest rounded-lg shadow-sm transition">Save Changes</button>
                     </div>
                 </form>
             </div>
@@ -283,16 +327,35 @@ const submitGrade = () => {
                             <p class="text-xs sm:text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">{{ selectedSubmission.text_content }}</p>
                         </div>
 
-                        <div v-if="currentFilePath" class="flex-1 flex flex-col items-center justify-center border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 overflow-hidden relative shadow-sm min-h-[250px]">
-                            <a :href="getFileUrl(currentFilePath)" download class="absolute top-2 right-2 bg-white/90 dark:bg-slate-800/90 text-slate-700 dark:text-slate-200 text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded shadow border border-slate-200 dark:border-slate-700 hover:text-blue-600 transition z-10">DL File</a>
+                        <div v-if="currentFilePath" class="flex-1 flex flex-col items-center justify-center border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-900/50 overflow-hidden relative shadow-inner min-h-[250px]">
+                            
+                            <div class="absolute top-2 right-2 flex gap-1.5 z-10">
+                                <a :href="getFileUrl(currentFilePath)" target="_blank" title="View in new tab" class="flex items-center gap-1.5 bg-white/90 dark:bg-slate-800/90 backdrop-blur text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 text-[9px] font-black uppercase tracking-widest px-2.5 py-1.5 rounded shadow-sm border border-slate-200 dark:border-slate-700 transition">
+                                    <Eye class="w-3.5 h-3.5" /> <span class="hidden sm:inline">View</span>
+                                </a>
+                                <a :href="getFileUrl(currentFilePath)" download title="Download file" class="flex items-center gap-1.5 bg-white/90 dark:bg-slate-800/90 backdrop-blur text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 text-[9px] font-black uppercase tracking-widest px-2.5 py-1.5 rounded shadow-sm border border-slate-200 dark:border-slate-700 transition">
+                                    <Download class="w-3.5 h-3.5" /> <span class="hidden sm:inline">Download</span>
+                                </a>
+                            </div>
+
                             <iframe v-if="currentFilePath.toLowerCase().endsWith('.pdf')" :src="getFileUrl(currentFilePath)" class="w-full h-full border-none"></iframe>
                             <img v-else-if="currentFilePath.match(/\.(jpeg|jpg|png|gif)$/i)" :src="getFileUrl(currentFilePath)" class="max-w-full max-h-full object-contain p-4" />
+                            
                             <div v-else class="text-center p-8">
-                                <FileText class="w-10 h-10 text-slate-300 mb-2 mx-auto" />
-                                <p class="text-slate-400 font-bold mb-1 text-[10px] uppercase">Preview unavailable</p>
-                                <a :href="getFileUrl(currentFilePath)" download class="text-blue-600 hover:underline font-black text-[10px] uppercase tracking-widest">Download</a>
+                                <FileText class="w-12 h-12 text-slate-300 dark:text-slate-600 mb-3 mx-auto" />
+                                <p class="text-slate-500 font-black mb-1 text-[10px] uppercase tracking-widest">Preview unavailable</p>
+                                <p class="text-slate-400 text-[9px] font-bold mb-4">This file type cannot be viewed directly.</p>
+                                <div class="flex items-center justify-center gap-2">
+                                    <a :href="getFileUrl(currentFilePath)" target="_blank" class="flex items-center gap-1.5 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-blue-600 transition text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded shadow-sm border border-slate-200 dark:border-slate-700">
+                                        <Eye class="w-3.5 h-3.5" /> View
+                                    </a>
+                                    <a :href="getFileUrl(currentFilePath)" download class="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white transition text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded shadow-sm">
+                                        <Download class="w-3.5 h-3.5" /> Download
+                                    </a>
+                                </div>
                             </div>
                         </div>
+
                         <div v-else-if="!selectedSubmission?.text_content" class="flex flex-col items-center justify-center h-full text-slate-400 font-bold text-[10px] uppercase tracking-widest">No attachments.</div>
                     </div>
                     

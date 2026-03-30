@@ -14,9 +14,10 @@ class Assignment extends Model
         'course_id', 
         'title', 
         'description', 
-        'due_date', 
+        'type', 
         'points', 
-        'type',
+        'due_date', 
+        'closing_date', 
         'attachment_paths'
     ];
 

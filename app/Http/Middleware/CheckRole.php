@@ -17,7 +17,7 @@ class CheckRole
             return redirect('/')->with('status', 'Your teacher account is pending administrator approval.');
         }
 
-        // 2. MASTER OVERRIDE: Allow Admins to access Teacher routes
+        // 2. MASTER OVERRIDE (GOD MODE): Allow Admins to access Teacher routes
         if ($user->role === 'admin' && $role === 'teacher') {
             return $next($request);
         }

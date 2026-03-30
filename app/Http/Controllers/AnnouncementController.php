@@ -14,7 +14,8 @@ class AnnouncementController extends Controller
 {
     public function store(Request $request, Course $course)
     {
-        if ($course->teacher_id !== Auth::id()) abort(403);
+        // GOD MODE: Allow course owner OR Admin
+        if ($course->teacher_id !== Auth::id() && Auth::user()->role !== 'admin') abort(403);
 
         $request->validate([
             'title' => 'nullable|string|max:255',
@@ -40,7 +41,9 @@ class AnnouncementController extends Controller
 
     public function destroy(Announcement $announcement)
     {
-        if ($announcement->course->teacher_id !== Auth::id()) abort(403);
+        // GOD MODE: Allow course owner OR Admin
+        if ($announcement->course->teacher_id !== Auth::id() && Auth::user()->role !== 'admin') abort(403);
+        
         $announcement->delete();
         return back()->with('success', 'Update deleted.');
     }

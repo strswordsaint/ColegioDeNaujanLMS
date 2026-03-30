@@ -3,16 +3,16 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, useForm, Link, usePage, router } from '@inertiajs/vue3';
 import { ref, onMounted, nextTick, computed, watch } from 'vue'; 
 import Modal from '@/Components/Modal.vue';
-// ADDED: Professional Icons
 import { 
     ChevronLeft, Calendar, Clock, Trophy, 
-    FileText, Paperclip, ExternalLink, Send, Undo2
+    FileText, Paperclip, ExternalLink, Send, Undo2, Filter, Eye, Download
 } from 'lucide-vue-next';
 
 const props = defineProps({ course: Object });
 const currentUser = usePage().props.auth.user;
 const activeTab = ref('announcements');
 const assignmentFilter = ref('upcoming'); 
+const sortOrder = ref('desc'); 
 const highlightedId = ref(null);
 
 const showSubmitModal = ref(false);
@@ -20,8 +20,10 @@ const selectedAssignment = ref(null);
 const formComment = useForm({ content: '' });
 const formSubmission = useForm({ files: [], text_content: '' });
 
-// --- URL PERSISTENCE LOGIC ---
-// Updates URL when tab changes so "Back" button/Refresh remembers state
+// NEW: Material Preview State
+const showMaterialPreview = ref(false);
+const selectedMaterialPath = ref(null);
+
 watch(activeTab, (newTab) => {
     const url = new URL(window.location.href);
     url.searchParams.set('tab', newTab);
@@ -38,7 +40,8 @@ const getYouTubeEmbedUrl = (url) => {
 const filteredAssignments = computed(() => {
     const now = new Date();
     if (!props.course.assignments) return [];
-    return props.course.assignments.filter(a => {
+    
+    let filtered = props.course.assignments.filter(a => {
         const isSubmitted = a.submissions.length > 0;
         const dueDate = a.due_date ? new Date(a.due_date) : null;
         const isPastDue = dueDate && dueDate < now;
@@ -46,20 +49,20 @@ const filteredAssignments = computed(() => {
         if (assignmentFilter.value === 'completed') return isSubmitted;
         if (assignmentFilter.value === 'past_due') return !isSubmitted && isPastDue;
         return !isSubmitted && (!isPastDue || !dueDate);
-    }).sort((a, b) => {
-        if (!a.due_date) return 1;
-        if (!b.due_date) return -1;
-        return new Date(a.due_date) - new Date(b.due_date);
     });
+
+    filtered.sort((a, b) => {
+        const dateA = new Date(a.created_at || 0).getTime();
+        const dateB = new Date(b.created_at || 0).getTime();
+        return sortOrder.value === 'desc' ? dateB - dateA : dateA - dateB;
+    });
+
+    return filtered;
 }); 
 
 const activeMaterials = computed(() => {
     const now = new Date();
     return props.course.lessons?.filter(l => !l.available_until || new Date(l.available_until) > now) || [];
-});
-
-const displayedMaterials = computed(() => {
-    return materialFilter.value === 'active' ? activeMaterials.value : archivedMaterials.value;
 });
 
 onMounted(async () => {
@@ -68,6 +71,7 @@ onMounted(async () => {
     const target = params.get('target');
 
     if (tab && ['announcements', 'assignments', 'materials'].includes(tab)) {
+        activeTab.value = tab;
     }
 
     if (target) {
@@ -96,6 +100,12 @@ const getPaths = (paths) => {
     if (!paths) return [];
     if (Array.isArray(paths)) return paths;
     try { return JSON.parse(paths) || []; } catch (e) { return []; }
+};
+
+// NEW: Function to open Material Preview
+const openMaterialPreview = (path) => {
+    selectedMaterialPath.value = path;
+    showMaterialPreview.value = true;
 };
 
 const toggleComments = (post) => { post.showComments = !post.showComments; };
@@ -142,7 +152,7 @@ const leaveClass = () => { if (confirm('Leave this class? You will lose access.'
                     <div v-if="activeTab === 'announcements'" class="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 rounded-full"></div>
                 </button>
                 <button @click="activeTab = 'assignments'" class="pb-3 text-sm font-bold transition-all relative" :class="activeTab === 'assignments' ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'">
-                    Assignments
+                    Tasks
                     <div v-if="activeTab === 'assignments'" class="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 rounded-full"></div>
                 </button>
                 <button @click="activeTab = 'materials'" class="pb-3 text-sm font-bold transition-all relative" :class="activeTab === 'materials' ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'">
@@ -200,42 +210,58 @@ const leaveClass = () => { if (confirm('Leave this class? You will lose access.'
             </div>
 
             <div v-if="activeTab === 'assignments'" class="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                <div class="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl gap-1 mb-4">
-                    <button v-for="f in ['upcoming', 'past_due', 'completed']" :key="f" @click="assignmentFilter = f" 
-                        class="flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all"
-                        :class="assignmentFilter === f ? 'bg-white dark:bg-slate-700 text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'">
-                        {{ f.replace('_', ' ') }}
-                    </button>
-                </div>
-
-                <div v-for="assignment in filteredAssignments" :key="assignment.id" :id="`item-${assignment.id}`" 
-                     class="bg-white dark:bg-slate-800 rounded-xl shadow-sm p-4 border border-slate-200 dark:border-slate-700 hover:border-blue-400 transition-all group"
-                     :class="{'ring-2 ring-yellow-400 border-yellow-500': highlightedId === assignment.id}">
-                    <div class="flex justify-between items-start mb-4">
-                        <div class="flex gap-4">
-                            <div class="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 shrink-0">
-                                <FileText class="w-5 h-5" />
-                            </div>
-                            <div>
-                                <h3 class="font-black text-slate-900 dark:text-white tracking-tight">{{ assignment.title }}</h3>
-                                <div class="flex items-center gap-3 mt-1">
-                                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1"><Calendar class="w-3 h-3" /> Due {{ assignment.due_date ? new Date(assignment.due_date).toLocaleDateString() : 'No Date' }}</span>
-                                    <span class="text-[10px] font-black text-blue-600 uppercase tracking-widest">{{ assignment.points }} Pts</span>
-                                </div>
-                            </div>
-                        </div>
-                        <span :class="getStatus(assignment).class" class="text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border shadow-sm">{{ getStatus(assignment).label }}</span>
-                    </div>
-
-                    <div class="text-xs text-slate-600 dark:text-slate-300 leading-relaxed mb-4 line-clamp-2" v-html="linkify(assignment.description)"></div>
-
-                    <div class="pt-4 border-t border-slate-50 dark:border-slate-700 flex justify-between items-center">
-                        <div v-if="assignment.submissions[0]" class="text-[10px] font-bold text-slate-400 italic">Submitted on {{ new Date(assignment.submissions[0].submitted_at).toLocaleDateString() }}</div>
-                        <div v-else class="text-[10px] font-bold text-red-400 italic">Not submitted yet</div>
-                        <button @click="openSubmitModal(assignment)" class="bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-black uppercase tracking-widest px-5 py-2 rounded-lg shadow-md transition-all active:scale-95">
-                            {{ assignment.submissions[0] ? 'View / Undo' : 'Submit Work' }}
+                
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                    <div class="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl gap-1 overflow-x-auto scrollbar-hide shrink-0">
+                        <button v-for="f in ['upcoming', 'past_due', 'completed']" :key="f" @click="assignmentFilter = f" 
+                            class="flex-1 px-4 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all whitespace-nowrap"
+                            :class="assignmentFilter === f ? 'bg-white dark:bg-slate-700 text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'">
+                            {{ f.replace('_', ' ') }}
                         </button>
                     </div>
+
+                    <div class="flex items-center gap-2 shrink-0">
+                        <Filter class="w-4 h-4 text-slate-400" />
+                        <select v-model="sortOrder" class="text-[10px] font-black uppercase tracking-widest text-slate-500 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg shadow-sm focus:ring-0 cursor-pointer py-1.5 pl-2 pr-6 transition">
+                            <option value="desc">Latest to Oldest</option>
+                            <option value="asc">Oldest to Latest</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div v-if="filteredAssignments.length > 0">
+                    <div v-for="assignment in filteredAssignments" :key="assignment.id" :id="`item-${assignment.id}`" 
+                         class="bg-white dark:bg-slate-800 rounded-xl shadow-sm p-4 border border-slate-200 dark:border-slate-700 hover:border-blue-400 transition-all group mb-4"
+                         :class="{'ring-2 ring-yellow-400 border-yellow-500': highlightedId === assignment.id}">
+                        <div class="flex justify-between items-start mb-4">
+                            <div class="flex gap-4">
+                                <div class="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 shrink-0">
+                                    <FileText class="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h3 class="font-black text-slate-900 dark:text-white tracking-tight">{{ assignment.title }}</h3>
+                                    <div class="flex items-center gap-3 mt-1">
+                                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1"><Calendar class="w-3 h-3" /> Due {{ assignment.due_date ? new Date(assignment.due_date).toLocaleDateString() : 'No Date' }}</span>
+                                        <span class="text-[10px] font-black text-blue-600 uppercase tracking-widest">{{ assignment.points }} Pts</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <span :class="getStatus(assignment).class" class="text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border shadow-sm">{{ getStatus(assignment).label }}</span>
+                        </div>
+
+                        <div class="text-xs text-slate-600 dark:text-slate-300 leading-relaxed mb-4 line-clamp-2" v-html="linkify(assignment.description)"></div>
+
+                        <div class="pt-4 border-t border-slate-50 dark:border-slate-700 flex justify-between items-center">
+                            <div v-if="assignment.submissions[0]" class="text-[10px] font-bold text-slate-400 italic">Submitted on {{ new Date(assignment.submissions[0].submitted_at).toLocaleDateString() }}</div>
+                            <div v-else class="text-[10px] font-bold text-red-400 italic">Not submitted yet</div>
+                            <button @click="openSubmitModal(assignment)" class="bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-black uppercase tracking-widest px-5 py-2 rounded-lg shadow-md transition-all active:scale-95">
+                                {{ assignment.submissions[0] ? 'View / Undo' : 'Submit Work' }}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div v-else class="text-center py-16 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-dashed border-slate-200 dark:border-slate-700">
+                    <p class="text-slate-400 text-[10px] font-black uppercase tracking-widest">No tasks found.</p>
                 </div>
             </div>
 
@@ -253,11 +279,14 @@ const leaveClass = () => { if (confirm('Leave this class? You will lose access.'
                                 <span v-if="lesson.available_until" class="text-[9px] font-bold text-red-400 uppercase tracking-widest mt-0.5">Closes: {{ new Date(lesson.available_until).toLocaleDateString() }}</span>
                             </div>
                         </div>
-                        <div class="flex gap-2 shrink-0">
-                            <a :href="`/storage/${lesson.attachment_path}`" target="_blank" class="text-[9px] font-black uppercase tracking-widest bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-3 py-2 rounded-lg hover:bg-emerald-50 hover:text-emerald-600 transition flex items-center gap-1">
-                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg> View
+                        
+                        <div class="flex items-center gap-2 shrink-0">
+                            <button @click="openMaterialPreview(lesson.attachment_path)" title="View Material" class="p-2 text-slate-500 bg-slate-50 hover:text-blue-600 hover:bg-blue-50 dark:bg-slate-900/50 dark:text-slate-400 dark:hover:text-blue-400 dark:hover:bg-blue-900/30 rounded-lg transition shadow-sm border border-slate-200 dark:border-slate-700">
+                                <Eye class="w-4 h-4" />
+                            </button>
+                            <a :href="`/storage/${lesson.attachment_path}`" download title="Download Material" class="p-2 text-emerald-600 bg-emerald-50 hover:text-white hover:bg-emerald-500 dark:bg-emerald-900/30 dark:text-emerald-500 dark:hover:text-white dark:hover:bg-emerald-600 rounded-lg transition shadow-sm border border-emerald-200 dark:border-emerald-800">
+                                <Download class="w-4 h-4" />
                             </a>
-                            <a :href="`/storage/${lesson.attachment_path}`" download class="text-[9px] font-black uppercase tracking-widest bg-emerald-600 text-white px-3 py-2 rounded-lg hover:bg-emerald-500 shadow-sm transition">Download</a>
                         </div>
                     </div>
                 </div>
@@ -267,6 +296,36 @@ const leaveClass = () => { if (confirm('Leave this class? You will lose access.'
                 </div>
             </div>
         </div>
+
+        <Modal :show="showMaterialPreview" @close="showMaterialPreview = false" maxWidth="4xl">
+            <div class="bg-white dark:bg-slate-900 rounded-2xl overflow-hidden shadow-2xl flex flex-col h-[85vh]">
+                <div class="p-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-900 shrink-0">
+                    <h3 class="font-black text-sm text-slate-900 dark:text-white flex items-center gap-2 uppercase tracking-tight">
+                        <div class="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                            <Eye class="w-4 h-4" /> 
+                        </div>
+                        Material Preview
+                    </h3>
+                    <button @click="showMaterialPreview = false" class="w-8 h-8 flex items-center justify-center rounded-full bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-300 hover:bg-slate-300 transition shrink-0">&times;</button>
+                </div>
+                
+                <div class="flex-1 p-4 bg-slate-100 dark:bg-slate-950/50 flex flex-col items-center justify-center relative overflow-hidden">
+                    <iframe v-if="selectedMaterialPath?.toLowerCase().endsWith('.pdf')" :src="`/storage/${selectedMaterialPath}`" class="w-full h-full border-none rounded-lg shadow-sm bg-white dark:bg-slate-900"></iframe>
+                    <img v-else-if="selectedMaterialPath?.match(/\.(jpeg|jpg|png|gif)$/i)" :src="`/storage/${selectedMaterialPath}`" class="max-w-full max-h-full object-contain rounded-lg shadow-sm" />
+                    
+                    <div v-else class="text-center p-8 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 max-w-sm w-full">
+                        <FileText class="w-16 h-16 text-slate-300 dark:text-slate-600 mb-4 mx-auto" />
+                        <p class="text-slate-500 font-black mb-1 text-[11px] uppercase tracking-widest">Preview unavailable</p>
+                        <p class="text-slate-400 text-[10px] font-bold mb-6">This file type cannot be viewed directly.</p>
+                        <div class="flex flex-col gap-2">
+                            <a :href="`/storage/${selectedMaterialPath}`" download class="inline-flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white transition text-[10px] font-black uppercase tracking-widest px-4 py-3 rounded-lg shadow-sm w-full">
+                                <Download class="w-4 h-4" /> Download File
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </Modal>
 
         <Modal :show="showSubmitModal" @close="showSubmitModal = false" maxWidth="2xl">
             <div class="bg-white dark:bg-slate-800 rounded-2xl overflow-hidden flex flex-col h-[85vh]">

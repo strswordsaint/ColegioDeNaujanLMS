@@ -25,7 +25,10 @@ const emit = defineEmits(['update:modelValue'])
 const editor = useEditor({
   content: props.modelValue,
   extensions: [
-    StarterKit,
+    // FIX: Disable the default link extension in StarterKit to prevent duplicates
+    StarterKit.configure({
+      link: false,
+    }),
     Placeholder.configure({
       placeholder: props.placeholder,
     }),
@@ -48,7 +51,6 @@ const editor = useEditor({
   },
   editorProps: {
     attributes: {
-      // FIX: Increased min-height to 200px and text size to text-sm/text-base so it's readable
       class: 'focus:outline-none min-h-[200px] p-4 text-sm sm:text-base text-slate-800 dark:text-slate-200 leading-relaxed',
     },
   },

@@ -18,6 +18,7 @@ class Lesson extends Model
         'attachment_path', 
         'priority_order',
         'approval_status',
+        'rejection_note',
         'available_from',
         'available_until'
     ];

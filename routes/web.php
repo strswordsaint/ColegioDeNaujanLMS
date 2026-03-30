@@ -109,7 +109,9 @@ Route::middleware(['auth', 'verified', 'role:admin'])->prefix('admin')->name('ad
     Route::patch('/users/{user}/toggle-status', [AdminDashboardController::class, 'toggleUserStatus'])->name('users.toggle-status');
     Route::patch('/users/{user}/approve-teacher', [AdminDashboardController::class, 'approveTeacher'])->name('users.approve-teacher');
     Route::delete('/users/{user}/reject-teacher', [AdminDashboardController::class, 'rejectTeacher'])->name('users.reject-teacher');
-    Route::patch('/lessons/bulk-approve', [LessonController::class, 'bulkApprove'])->name('lessons.bulk-approve');
+    
+    Route::post('/lessons/bulk-approve', [LessonController::class, 'bulkApprove'])->name('lessons.bulk-approve');
+    
     Route::patch('/lessons/{lesson}/approve', [LessonController::class, 'approve'])->name('lessons.approve');
     Route::post('/courses', [AdminDashboardController::class, 'storeCourse'])->name('courses.store');
     Route::get('/materials', [AdminDashboardController::class, 'materials'])->name('materials');
@@ -119,6 +121,8 @@ Route::middleware(['auth', 'verified', 'role:admin'])->prefix('admin')->name('ad
     Route::post('/settings/material-approval', [AdminDashboardController::class, 'toggleMaterialApproval'])->name('settings.material-approval');
     Route::patch('/lessons/{lesson}/update', [LessonController::class, 'update'])->name('lessons.update');
     
+    // GRADES ROUTE
+    Route::get('/grades', [AdminDashboardController::class, 'gradesOverview'])->name('grades.index');
 });
 
 Route::middleware(['auth', 'verified'])->group(function () {
