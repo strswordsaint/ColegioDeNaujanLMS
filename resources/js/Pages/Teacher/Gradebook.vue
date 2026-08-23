@@ -44,6 +44,11 @@ onMounted(() => {
 
 const hasErrors = computed(() => Object.keys(validationErrors.value).length > 0);
 
+// Helper function to prevent template interpolation bugs in VS Code
+const hasValidationError = (studentId, assignmentId) => {
+    return Boolean(validationErrors.value[studentId + '_' + assignmentId]);
+};
+
 const toggleStudent = (studentId) => {
     expandedStudentId.value = expandedStudentId.value === studentId ? null : studentId;
 };
@@ -53,15 +58,17 @@ const getSubmission = (student, assignmentId) => {
     return student.submissions.find(s => s.assignment_id === assignmentId);
 };
 
+// Accurately evaluates late enrollees based on Approval Time (Matching PHP Controller logic)
 const isLateEnrollee = (student, assignment) => {
     const desc = assignment.description || '';
     const isHiddenFromLate = desc.includes('[RESTRICT_LATE_STUDENTS]');
     
     if (!isHiddenFromLate) return false; 
     if (!assignment.due_date) return false; 
-    if (!student.pivot || !student.pivot.created_at) return false;
+    if (!student.pivot) return false;
     
-    const enrollmentDate = new Date(student.pivot.created_at);
+    // Uses updated_at (the moment the teacher clicked approve)
+    const enrollmentDate = new Date(student.pivot.updated_at || student.pivot.created_at);
     const dueDate = new Date(assignment.due_date);
     
     return enrollmentDate > dueDate;
@@ -71,14 +78,15 @@ const updatePendingGrade = (studentId, assignmentId, maxPoints, courseId, event)
     const val = event.target.value.trim();
     const numericVal = parseFloat(val);
     const max = parseFloat(maxPoints);
+    const key = studentId + '_' + assignmentId;
 
     if (val !== '' && !isNaN(numericVal) && numericVal > max) {
-        validationErrors.value[`${studentId}_${assignmentId}`] = true;
+        validationErrors.value[key] = true;
     } else {
-        delete validationErrors.value[`${studentId}_${assignmentId}`];
+        delete validationErrors.value[key];
     }
 
-    pendingGrades.value[`${studentId}_${assignmentId}`] = {
+    pendingGrades.value[key] = {
         student_id: studentId,
         assignment_id: assignmentId,
         course_id: courseId,
@@ -88,7 +96,7 @@ const updatePendingGrade = (studentId, assignmentId, maxPoints, courseId, event)
 
 const getInputValue = (student, assignmentId) => {
     const studentId = typeof student === 'object' ? student.id : student;
-    const key = `${studentId}_${assignmentId}`;
+    const key = studentId + '_' + assignmentId;
     
     if (pendingGrades.value[key] !== undefined) {
         return pendingGrades.value[key].grade;
@@ -356,11 +364,12 @@ const downloadExcel = () => {
                 
                 <div class="flex items-center gap-1.5 w-full md:w-auto shrink-0 flex-wrap">
                     
+                    <!-- STUDENT SORT ORDER -->
                     <div class="flex items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded shadow-sm flex-1 md:flex-none">
                         <ArrowUpDown class="w-3 h-3 text-slate-400 ml-1.5 shrink-0" />
                         <select v-model="sortOrder" class="w-full text-[9px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300 bg-transparent border-none focus:ring-0 cursor-pointer py-1 pl-1 pr-5">
-                            <option value="alpha_asc">A to Z</option>
-                            <option value="alpha_desc">Z to A</option>
+                            <option value="alpha_asc">Student (A-Z)</option>
+                            <option value="alpha_desc">Student (Z-A)</option>
                             <option value="avg_desc">Highest Grade</option>
                             <option value="avg_asc">Lowest Grade</option>
                         </select>
@@ -368,7 +377,7 @@ const downloadExcel = () => {
 
                     <button @click="toggleEditMode"
                             :class="isEditMode ? (hasErrors ? 'bg-red-600 hover:bg-red-500 text-white' : 'bg-emerald-600 hover:bg-emerald-500 text-white') : 'bg-blue-600 hover:bg-blue-500 text-white'"
-                            class="flex items-center justify-center gap-1 px-2.5 py-1 rounded font-black text-[9px] uppercase tracking-widest shadow-sm transition shrink-0 disabled:opacity-50">
+                            class="flex items-center justify-center gap-1 px-2.5 py-1 rounded font-black text-[9px] uppercase tracking-widest shadow-sm transition shrink-0 disabled:opacity-50 flex-1 md:flex-none">
                         <svg v-if="isSaving" class="animate-spin w-3 h-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -381,7 +390,7 @@ const downloadExcel = () => {
                         </span>
                     </button>
 
-                    <button @click="downloadExcel" class="flex items-center justify-center gap-1 bg-slate-800 hover:bg-slate-700 text-white px-2.5 py-1 rounded font-black text-[9px] uppercase tracking-widest shadow-sm transition shrink-0">
+                    <button @click="downloadExcel" class="flex items-center justify-center gap-1 bg-slate-800 hover:bg-slate-700 text-white px-2.5 py-1 rounded font-black text-[9px] uppercase tracking-widest shadow-sm transition shrink-0 flex-1 md:flex-none">
                         <Download class="w-3 h-3" /> <span class="hidden sm:inline">Export</span>
                     </button>
                 </div>
@@ -459,7 +468,7 @@ const downloadExcel = () => {
                                                             :value="getInputValue(student, a.id)"
                                                             @input="updatePendingGrade(student.id, a.id, a.points, c.id, $event)"
                                                             class="w-full text-center border-0 bg-transparent focus:ring-1 focus:ring-inset rounded text-[10px] font-bold transition-colors py-0.5 px-0 h-5"
-                                                            :class="validationErrors[`${student.id}_${a.id}`] ? 'text-red-600 focus:ring-red-500 bg-red-50 dark:bg-red-900/40 dark:text-red-400' : 'text-slate-700 dark:text-slate-200 focus:ring-blue-500 placeholder-slate-300 dark:placeholder-slate-600'"
+                                                            :class="hasValidationError(student.id, a.id) ? 'text-red-600 focus:ring-red-500 bg-red-50 dark:bg-red-900/40 dark:text-red-400' : 'text-slate-700 dark:text-slate-200 focus:ring-blue-500 placeholder-slate-300 dark:placeholder-slate-600'"
                                                             placeholder="-"
                                                         />
                                                     </template>
@@ -485,11 +494,11 @@ const downloadExcel = () => {
                                         <div class="font-black text-purple-600 dark:text-purple-400 text-[10px]">{{ student.activity_score > 0 ? ((student.activity_score / c.max_activity) * 100).toFixed(1) : 0 }}%</div>
                                         <div class="font-bold text-slate-500 dark:text-slate-400 text-[7px] mt-0.5">{{ student.activity_score }} Raw</div>
                                     </td>
-                                    <td class="px-1.5 py-1 text-center border-r border-slate-200 dark:border-slate-700 bg-orange-50/10 dark:bg-orange-900/5">
+                                    <td class="px-1.5 py-1 text-center border-r border-slate-200 dark:border-slate-700 bg-orange-50/30 dark:bg-orange-900/10">
                                         <div class="font-black text-orange-600 dark:text-orange-400 text-[10px]">{{ student.pt_score > 0 ? ((student.pt_score / c.max_pt) * 100).toFixed(1) : 0 }}%</div>
                                         <div class="font-bold text-slate-500 dark:text-slate-400 text-[7px] mt-0.5">{{ student.pt_score }} Raw</div>
                                     </td>
-                                    <td class="px-2 py-1 text-center border-l border-emerald-200 dark:border-emerald-800 bg-emerald-50/20 dark:bg-emerald-900/10">
+                                    <td class="px-2 py-1 text-center border-l border-emerald-200 dark:border-emerald-800 bg-emerald-50/40 dark:bg-emerald-900/20 text-emerald-800 dark:text-emerald-400">
                                         <span class="text-[10px] font-black block" :class="student.percentage >= 75 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'">
                                             {{ student.percentage }}%
                                         </span>
@@ -555,7 +564,7 @@ const downloadExcel = () => {
                                                      :value="getInputValue(student, a.id)"
                                                      @input="updatePendingGrade(student.id, a.id, a.points, c.id, $event)"
                                                      class="w-full h-5 text-center border focus:ring-1 focus:ring-inset rounded text-[9px] font-black transition-colors py-0 px-1 shadow-inner"
-                                                     :class="validationErrors[`${student.id}_${a.id}`] ? 'border-red-500 text-red-600 bg-red-50 focus:ring-red-500 dark:bg-red-900/40 dark:border-red-700 dark:text-red-400' : 'border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 focus:ring-blue-500 text-slate-900 dark:text-white placeholder-slate-300'"
+                                                     :class="hasValidationError(student.id, a.id) ? 'border-red-500 text-red-600 bg-red-50 focus:ring-red-500 dark:bg-red-900/40 dark:border-red-700 dark:text-red-400' : 'border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 focus:ring-blue-500 text-slate-900 dark:text-white placeholder-slate-300'"
                                                      placeholder="-"
                                                  />
                                                  <div v-else class="w-full h-5 flex items-center justify-center rounded bg-slate-100 dark:bg-slate-800 text-[9px] font-black text-slate-500 dark:text-slate-400 cursor-not-allowed border border-slate-200 dark:border-slate-700">
@@ -579,7 +588,7 @@ const downloadExcel = () => {
                                     </div>
                                     <div class="text-center bg-white dark:bg-slate-800 p-1.5 rounded border border-purple-100 dark:border-purple-800/30">
                                         <span class="block text-[7px] font-black uppercase text-purple-500">Act.</span>
-                                        <span class="block text-[10px] font-black text-purple-600 dark:text-purple-400 mt-0.5">{{ student.activity_score > 0 ? ((student.activity_score / c.max_activity) * 100).toFixed(1) : 0 }}%</span>
+                                        <span class="block text-[10px] font-black text-purple-600 dark:text-purple-400 mt-0.5">{{ student.actPS }}%</span>
                                         <span class="block text-[7px] font-bold text-slate-500 mt-0.5">{{ student.activity_score }}/{{ c.max_activity }}</span>
                                     </div>
                                     <div class="text-center bg-white dark:bg-slate-800 p-1.5 rounded border border-orange-100 dark:border-orange-800/30">
@@ -635,7 +644,7 @@ const downloadExcel = () => {
                                     <span class="block text-orange-800 dark:text-orange-300">PT.</span>
                                     <span class="text-[7px] text-orange-600 dark:text-orange-400 mt-0.5 block">Max {{ maxCategoryPoints.pt }}</span>
                                 </th>
-                                <th class="px-2 py-1.5 min-w-[70px] border-l border-emerald-200 dark:border-emerald-800 text-center bg-emerald-50/50 dark:bg-emerald-900/20 text-emerald-800 dark:text-emerald-400">
+                                <th class="px-2 py-1.5 min-w-[70px] border-l border-emerald-200 dark:border-emerald-800 text-center bg-emerald-50/40 dark:bg-emerald-900/20 text-emerald-800 dark:text-emerald-400">
                                     <span class="block">Overall</span>
                                     <span class="text-[7px] text-emerald-600 dark:text-emerald-400 mt-0.5 block">Max {{ maxCategoryPoints.total }}</span>
                                 </th>
@@ -668,7 +677,7 @@ const downloadExcel = () => {
                                                         :value="getInputValue(student, a.id)"
                                                         @input="updatePendingGrade(student.id, a.id, a.points, course.id, $event)"
                                                         class="w-full text-center border-0 bg-transparent focus:ring-1 focus:ring-inset rounded text-[10px] font-bold transition-colors py-0.5 px-0 h-5"
-                                                        :class="validationErrors[`${student.id}_${a.id}`] ? 'text-red-600 focus:ring-red-500 bg-red-50 dark:bg-red-900/40 dark:text-red-400' : 'text-slate-700 dark:text-slate-200 focus:ring-blue-500 placeholder-slate-300 dark:placeholder-slate-600'"
+                                                        :class="hasValidationError(student.id, a.id) ? 'text-red-600 focus:ring-red-500 bg-red-50 dark:bg-red-900/40 dark:text-red-400' : 'text-slate-700 dark:text-slate-200 focus:ring-blue-500 placeholder-slate-300 dark:placeholder-slate-600'"
                                                         placeholder="-"
                                                     />
                                                 </template>
@@ -782,7 +791,7 @@ const downloadExcel = () => {
                                                 :value="getInputValue(student, a.id)"
                                                 @input="updatePendingGrade(student.id, a.id, a.points, course.id, $event)"
                                                 class="w-full h-5 text-center border focus:ring-1 focus:ring-inset rounded text-[9px] font-black transition-colors py-0 px-1 shadow-inner"
-                                                :class="validationErrors[`${student.id}_${a.id}`] ? 'border-red-500 text-red-600 bg-red-50 focus:ring-red-500 dark:bg-red-900/40 dark:border-red-700 dark:text-red-400' : 'border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 focus:ring-blue-500 text-slate-900 dark:text-white placeholder-slate-300'"
+                                                :class="hasValidationError(student.id, a.id) ? 'border-red-500 text-red-600 bg-red-50 focus:ring-red-500 dark:bg-red-900/40 dark:border-red-700 dark:text-red-400' : 'border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 focus:ring-blue-500 text-slate-900 dark:text-white placeholder-slate-300'"
                                                 placeholder="-"
                                             />
                                             <div v-else class="w-full h-5 flex items-center justify-center rounded bg-slate-100 dark:bg-slate-800 text-[9px] font-black text-slate-500 dark:text-slate-400 cursor-not-allowed border border-slate-200 dark:border-slate-700">
@@ -801,7 +810,6 @@ const downloadExcel = () => {
                                 </div>
                             </div>
 
-                            <!-- COMPACT MOBILE CATEGORY BREAKDOWN -->
                             <div class="col-span-1 sm:col-span-2 grid grid-cols-3 gap-1.5 mt-1 pt-1 border-t border-slate-100 dark:border-slate-700">
                                 <div class="text-center bg-blue-50/50 dark:bg-blue-900/10 p-1.5 rounded border border-blue-100 dark:border-blue-800/30">
                                     <span class="block text-[7px] font-black uppercase text-blue-500">Ass. PS</span>

@@ -147,15 +147,18 @@ class CourseController extends Controller
         $user = Auth::user();
         
         if ($user->role === 'admin') {
-            $allCourses = Course::select('id', 'title')->orderBy('created_at', 'desc')->get();
+            $allCourses = Course::with('teacher:id,name')->select('id', 'title', 'teacher_id')->orderBy('created_at', 'desc')->get();
         } else {
-            $allCourses = Course::where('teacher_id', $teacherId)->select('id', 'title')->orderBy('created_at', 'desc')->get();
+            $allCourses = Course::where('teacher_id', $teacherId)->with('teacher:id,name')->select('id', 'title', 'teacher_id')->orderBy('created_at', 'desc')->get();
         }
 
         if ($allCourses->isEmpty()) {
             return Inertia::render('Teacher/Gradebook', ['course' => null, 'courses' => [], 'assignments' => [], 'students' => [], 'all_export_data' => []]);
         }
 
+        // ==========================================
+        // SCENARIO 1: ALL COURSES (MEGA VIEW)
+        // ==========================================
         if ($courseParam === 'all') {
             $managedCoursesQuery = ($user->role === 'admin') ? Course::query() : Course::where('teacher_id', $teacherId);
             $coursesWithData = $managedCoursesQuery->with(['teacher:id,name', 'assignments'])
@@ -183,9 +186,11 @@ class CourseController extends Controller
                     if ($c->assignments->isNotEmpty()) {
                         $courseAssignmentIds = $c->assignments->pluck('id')->toArray();
                         $submissions = $student->submissions->whereIn('assignment_id', $courseAssignmentIds);
+
                         foreach($submissions as $sub) {
                             $grade = (float)$sub->grade;
                             $type = $sub->assignment ? $sub->assignment->type : null;
+                            
                             $studentTotal += $grade;
                             if ($type === 'assignment') $assignmentScore += $grade;
                             elseif ($type === 'activity') $activityScore += $grade;
@@ -194,6 +199,7 @@ class CourseController extends Controller
                     }
 
                     $percentage = $totalCoursePoints > 0 ? round(($studentTotal / $totalCoursePoints) * 100, 1) : 0;
+
                     return [
                         'id' => $student->id,
                         'name' => $student->name,
@@ -215,6 +221,7 @@ class CourseController extends Controller
                 return [
                     'id' => $c->id,
                     'title' => $c->title,
+                    'teacher' => $c->teacher ? $c->teacher->name : 'Unassigned',
                     'assignments' => $c->assignments->map(fn($a) => ['id' => $a->id, 'title' => $a->title, 'type' => $a->type, 'points' => $a->points])->toArray(),
                     'total_points' => $totalCoursePoints,
                     'max_assignment' => $maxAssignment,
@@ -233,18 +240,19 @@ class CourseController extends Controller
             ]);
         }
 
-        // --- SCENARIO 2: SINGLE COURSE VIEW ---
+        // ==========================================
+        // SCENARIO 2: SINGLE COURSE
+        // ==========================================
         if (!$courseParam) {
-            $course = Course::find($allCourses->first()->id);
+            $course = Course::with('teacher:id,name')->find($allCourses->first()->id);
         } else {
-            $course = Course::findOrFail($courseParam);
+            $course = Course::with('teacher:id,name')->findOrFail($courseParam);
             if ($course->teacher_id !== $teacherId && $user->role !== 'admin') {
                 abort(403);
             }
         }
 
         $assignments = $course->assignments()->orderBy('created_at')->get();
-
         $students = User::whereHas('enrolledCourses', function($query) use ($course) {
             $query->where('course_id', $course->id)->where('enrollments.status', 'approved');
         })->with(['submissions' => function($query) use ($course) {
