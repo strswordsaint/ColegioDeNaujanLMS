@@ -11,7 +11,8 @@ class GeminiService
     protected $groqApiKey;
     protected $openRouterApiKey; 
     
-    protected $baseUrl = 'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent';
+    // Updated to the cheapest model for background data-crunching tasks
+    protected $baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent';
 
     public function __construct()
     {
@@ -30,9 +31,10 @@ class GeminiService
 
         // --- TIER 1: GOOGLE GEMINI ---
         if (!empty($this->apiKey)) {
+            // Updated to prioritize 3.5 Flash-Lite and fallback to 2.5 Flash-Lite
             $googleAttempts = [
-                ['url' => 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent', 'name' => 'Gemini 3 Flash'],
-                ['url' => 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', 'name' => 'Gemini 2.5 Flash'],
+                ['url' => 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent', 'name' => 'Gemini 3.5 Flash-Lite'],
+                ['url' => 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent', 'name' => 'Gemini 2.5 Flash-Lite'],
             ];
 
             foreach ($googleAttempts as $attempt) {
@@ -178,15 +180,20 @@ class GeminiService
             $response = Http::timeout(30)->withOptions(['verify' => false])
                 ->withHeaders(['Content-Type' => 'application/json'])
                 ->post("{$this->baseUrl}?key={$this->apiKey}", [
-                    'contents' => [['parts' => [['text' => $prompt]]]]
+                    'contents' => [['parts' => [['text' => $prompt]]]],
+                    // Added generationConfig to force native JSON output
+                    'generationConfig' => [
+                        'response_mime_type' => 'application/json'
+                    ]
                 ]);
             
             if ($response->failed()) return null;
             
-            $text = $response->json()['candidates'][0]['content']['parts'][0]['text'] ?? '';
-            $text = preg_replace('/^```json|```$/m', '', $text); 
+            // Regex removed, relying on structured output
+            $text = $response->json()['candidates'][0]['content']['parts'][0]['text'] ?? '{}';
             return json_decode($text, true);
         } catch (\Exception $e) {
+            Log::error("Gemini JSON Generation Error: " . $e->getMessage());
             return null;
         }
     }
