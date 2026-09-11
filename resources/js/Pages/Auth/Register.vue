@@ -5,31 +5,40 @@ import { Head, Link } from '@inertiajs/vue3';
 <template>
     <Head title="Register" />
 
-    <div class="flex h-screen min-h-full bg-white">
+    <div class="flex h-screen min-h-full transition-colors duration-300">
         
+        <!-- Left side: Blue background takes up all the extra space -->
         <div class="relative hidden w-0 flex-1 overflow-hidden bg-blue-800 lg:block">
-            <div class="flex h-full flex-col justify-center px-4 py-12 sm:px-6 lg:px-20 xl:px-24">
-                <div class="flex flex-row items-center justify-start">
-                    <img class="h100 w-100 -ml-32" src="/images/Logo2.png" alt="Colegio de Naujan" />
-                    <div class="-ml-16 flex-shrink-0">
-                        <h2 class="text-4xl font-bold tracking-tight text-white">
-                            Colegio de Naujan
-                        </h2>
-                        <p class="mt-2 text-lg text-blue-100">
-                            Join our learning community today.
-                        </p>
+            <div class="flex h-full flex-col justify-center items-center px-4 py-12 sm:px-6 lg:px-20 xl:px-24 relative z-10">
+                
+                <div class="flex flex-col items-center gap-10 text-center">
+                    <img class="h-80 w-auto drop-shadow-2xl" src="/images/Logo2.png" alt="Colegio de Naujan" />
+
+                    <div class="flex-shrink-0">
+                        <h2 class="text-4xl lg:text-5xl font-bold tracking-tight text-white leading-tight">Colegio de Naujan</h2>
+                        <p class="mt-4 text-xl text-blue-100">Join our learning community today.</p>
                     </div>
                 </div>
             </div>
+            
+            <div class="absolute -bottom-24 -left-24 w-96 h-96 bg-blue-600 rounded-full blur-3xl opacity-50"></div>
+            <div class="absolute top-12 right-12 w-64 h-64 bg-blue-400 rounded-full blur-3xl opacity-30"></div>
         </div>
 
-        <div class="flex flex-1 flex-col justify-center px-4 py-12 sm:px-6 lg:flex-none lg:px-20 xl:px-24">
-            <div class="mx-auto w-full max-w-sm lg:w-96">
+        <!-- Right side: White background is locked to a small size for the 80/20 look -->
+        <div class="flex flex-col justify-center w-full lg:w-[450px] xl:w-[500px] shrink-0 px-4 py-12 sm:px-6 overflow-y-auto bg-blue-800 lg:bg-white">
+            
+            <div class="mx-auto w-full max-w-sm bg-white p-8 sm:p-10 rounded-2xl shadow-xl border border-slate-100">
+                
+                <div class="flex justify-center mb-8 lg:hidden">
+                    <img src="/images/Logo2.png" alt="Colegio de Naujan" class="h-40 w-auto drop-shadow-md" />
+                </div>
+
                 <div>
-                    <h2 class="mt-8 text-2xl font-bold tracking-tight text-slate-900">
+                    <h2 class="text-2xl font-bold tracking-tight text-slate-900 text-center lg:text-left">
                         Create your account
                     </h2>
-                    <p class="mt-2 text-sm text-slate-600 font-medium">
+                    <p class="mt-2 text-sm text-slate-600 font-medium text-center lg:text-left">
                         Already have an account?
                         <Link :href="route('login')" class="font-bold text-blue-700 hover:text-blue-600 underline transition-colors">
                             Sign in here
@@ -37,7 +46,7 @@ import { Head, Link } from '@inertiajs/vue3';
                     </p>
                 </div>
 
-                <div class="mt-10">
+                <div class="mt-8">
                     <div class="bg-slate-50 p-6 rounded-xl border border-slate-200 text-center shadow-sm">
                         <h3 class="text-slate-900 font-black text-lg mb-2">Step 1: Verification</h3>
                         <p class="text-sm text-slate-500 mb-6 leading-relaxed">
@@ -56,7 +65,6 @@ import { Head, Link } from '@inertiajs/vue3';
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
                         <span class="text-xs font-medium">Your information is secure.</span>
                     </div>
-
                 </div>
             </div>
         </div>

@@ -53,25 +53,43 @@ const triggerReset = () => {
 <template>
     <Head title="Log in" />
 
-    <div class="flex h-screen min-h-full bg-white transition-colors duration-300">
+    <div class="flex h-screen min-h-full transition-colors duration-300">
         
+        <!-- Left Panel: Brand & Logo -->
         <div class="relative hidden w-0 flex-1 overflow-hidden bg-blue-800 lg:block">
-            <div class="flex h-full flex-col justify-center px-4 py-12 sm:px-6 lg:px-20 xl:px-24 relative z-10">
-                <div class="flex flex-row items-center justify-start">
-                    <img class="h100 w-100 -ml-32" src="/images/Logo2.png" alt="Colegio de Naujan" />
-                    <div class="-ml-16 flex-shrink-0">
-                        <h2 class="text-4xl font-bold tracking-tight text-white">Colegio de Naujan</h2>
-                        <p class="mt-2 text-lg text-blue-100">Welcome back to your learning space.</p>
+            <!-- Center everything in this container -->
+            <div class="flex h-full flex-col justify-center items-center px-4 py-12 sm:px-6 lg:px-20 xl:px-24 relative z-10">
+                
+                <!-- Stack items vertically (flex-col) and center them -->
+                <div class="flex flex-col items-center gap-10 text-center">
+                    
+                    <!-- Logo placed on top and made bigger (h-80) -->
+                    <img class="h-80 w-auto drop-shadow-2xl" src="/images/Logo2.png" alt="Colegio de Naujan" />
+
+                    <!-- Text placed below the logo -->
+                    <div class="flex-shrink-0">
+                        <h2 class="text-4xl lg:text-5xl font-bold tracking-tight text-white leading-tight">Colegio de Naujan</h2>
+                        <p class="mt-4 text-xl text-blue-100">Welcome back to your learning space.</p>
                     </div>
+                    
                 </div>
             </div>
+            
+            <!-- Decorative background elements -->
             <div class="absolute -bottom-24 -left-24 w-96 h-96 bg-blue-600 rounded-full blur-3xl opacity-50"></div>
             <div class="absolute top-12 right-12 w-64 h-64 bg-blue-400 rounded-full blur-3xl opacity-30"></div>
         </div>
 
-        <div class="flex flex-1 flex-col justify-center px-4 py-12 sm:px-6 lg:flex-none lg:px-20 xl:px-24 overflow-y-auto bg-white">
+        <!-- Right Panel: Login Form Container -->
+        <div class="flex flex-1 flex-col justify-center px-4 py-12 sm:px-6 lg:flex-none lg:px-20 xl:px-24 overflow-y-auto bg-blue-800 lg:bg-white">
             
-            <div v-if="status" class="mx-auto w-full max-w-sm lg:w-96 py-8 flex flex-col items-center text-center">
+            <!-- Reset Link Sent State -->
+            <div v-if="status" class="mx-auto w-full max-w-md bg-white p-8 sm:p-10 rounded-2xl shadow-xl border border-slate-100 flex flex-col items-center text-center">
+                
+                <div class="flex justify-center mb-6 lg:hidden">
+                    <img src="/images/Logo2.png" alt="Colegio de Naujan" class="h-32 w-auto" />
+                </div>
+
                 <div class="w-16 h-16 rounded-full bg-emerald-50 border border-emerald-100 flex items-center justify-center mb-6 shadow-sm">
                     <svg class="w-8 h-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
                 </div>
@@ -84,12 +102,18 @@ const triggerReset = () => {
                 </a>
             </div>
 
-            <div v-else class="mx-auto w-full max-w-sm lg:w-96 py-8">
+            <!-- Main Login Form -->
+            <div v-else class="mx-auto w-full max-w-md bg-white p-8 sm:p-10 rounded-2xl shadow-xl border border-slate-100">
+                
+                <div class="flex justify-center mb-8 lg:hidden">
+                    <img src="/images/Logo2.png" alt="Colegio de Naujan" class="h-40 w-auto drop-shadow-md" />
+                </div>
+
                 <div>
-                    <h2 class="text-2xl font-bold tracking-tight text-slate-900">
+                    <h2 class="text-2xl font-bold tracking-tight text-slate-900 text-center lg:text-left">
                         Sign in to your account
                     </h2>
-                    <p class="mt-2 text-sm text-slate-600 font-medium">
+                    <p class="mt-2 text-sm text-slate-600 font-medium text-center lg:text-left">
                         Don't have an account?
                         <Link :href="route('register')" class="font-bold text-blue-700 hover:text-blue-600 underline transition-colors">
                             Register here

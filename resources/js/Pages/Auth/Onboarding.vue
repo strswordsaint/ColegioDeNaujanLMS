@@ -14,10 +14,8 @@ const props = defineProps({
 });
 
 const currentStep = ref(1);
-
 const currentYear = new Date().getFullYear();
 const years = ref(Array.from({ length: currentYear - 2016 + 1 }, (_, i) => currentYear - i));
-
 const idYear = ref(currentYear.toString());
 const idNumber = ref('');
 
@@ -48,7 +46,6 @@ const submit = () => {
     if (form.program === 'Other') {
         form.program = customProgram.value;
     }
-
     form.post(route('register.complete'), {
         onError: () => {
             form.program = originalProgram;
@@ -59,27 +56,38 @@ const submit = () => {
 
 <template>
     <Head title="Complete Setup" />
-
-    <div class="flex h-screen min-h-full bg-white">
+    <div class="flex h-screen min-h-full transition-colors duration-300">
         
+        <!-- Left Panel: Brand & Logo -->
         <div class="relative hidden w-0 flex-1 overflow-hidden bg-blue-800 lg:block">
-            <div class="flex h-full flex-col justify-center px-4 py-12 sm:px-6 lg:px-20 xl:px-24">
-                <div class="flex flex-row items-center justify-start">
-                    <img class="h100 w-100 -ml-32" src="/images/Logo2.png" alt="Colegio de Naujan" />
-                    <div class="-ml-16 flex-shrink-0">
-                        <h2 class="text-4xl font-bold tracking-tight text-white">
+            <div class="flex h-full flex-col justify-center items-center px-4 py-12 sm:px-6 lg:px-20 xl:px-24 relative z-10">
+                <div class="flex flex-col items-center gap-10 text-center">
+                    <img class="h-80 w-auto drop-shadow-2xl" src="/images/Logo2.png" alt="Colegio de Naujan" />
+                    <div class="flex-shrink-0">
+                        <h2 class="text-4xl lg:text-5xl font-bold tracking-tight text-white leading-tight">
                             Colegio de Naujan
                         </h2>
-                        <p class="mt-2 text-lg text-blue-100">
+                        <p class="mt-4 text-xl text-blue-100">
                             Complete your profile to <br> access your personalized dashboard.
                         </p>
                     </div>
                 </div>
             </div>
+            <!-- Decorative background elements -->
+            <div class="absolute -bottom-24 -left-24 w-96 h-96 bg-blue-600 rounded-full blur-3xl opacity-50"></div>
+            <div class="absolute top-12 right-12 w-64 h-64 bg-blue-400 rounded-full blur-3xl opacity-30"></div>
         </div>
 
-        <div class="flex flex-1 flex-col justify-center px-4 py-12 sm:px-6 lg:flex-none lg:px-20 xl:px-24 overflow-y-auto">
-            <div class="mx-auto w-full max-w-sm lg:w-96 py-8">
+        <!-- Right Panel: Form Container -->
+        <div class="flex flex-1 flex-col justify-center px-4 py-12 sm:px-6 lg:flex-none lg:px-20 xl:px-24 overflow-y-auto bg-blue-800 lg:bg-white">
+            
+            <!-- Elevated Card Wrapper -->
+            <div class="mx-auto w-full max-w-md bg-white p-8 sm:p-10 rounded-2xl shadow-xl border border-slate-100">
+                
+                <!-- Mobile Logo Header -->
+                <div class="flex justify-center mb-8 lg:hidden">
+                    <img src="/images/Logo2.png" alt="Colegio de Naujan" class="h-40 w-auto drop-shadow-md" />
+                </div>
                 
                 <div class="mb-8">
                     <div class="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
@@ -91,16 +99,14 @@ const submit = () => {
                         <div class="bg-blue-600 h-1.5 rounded-full transition-all duration-500 ease-out" :style="`width: ${(currentStep / 3) * 100}%`"></div>
                     </div>
                 </div>
-
                 <div>
-                    <h2 class="text-2xl font-bold tracking-tight text-slate-900">
+                    <h2 class="text-2xl font-bold tracking-tight text-slate-900 text-center lg:text-left">
                         Welcome, {{ user.name.split(' ')[0] }}!
                     </h2>
-                    <p class="mt-2 text-sm text-slate-600 font-medium">
+                    <p class="mt-2 text-sm text-slate-600 font-medium text-center lg:text-left">
                         Let's get your student account ready.
                     </p>
                 </div>
-
                 <div class="mt-8">
                     <form @submit.prevent="submit" class="flex-1">
                         
@@ -117,21 +123,17 @@ const submit = () => {
                                     </div>
                                     <InputError :message="form.errors.school_id" class="mt-1 text-[11px]" />
                                 </div>
-
                                 <div>
                                     <InputLabel for="contact" value="Mobile Number" class="font-bold text-slate-700" />
                                     <TextInput id="contact" v-model="form.contact_number" type="text" inputmode="numeric" class="mt-1.5 block w-full py-2.5 text-sm rounded-lg shadow-sm" placeholder="e.g. 09123456789" required />
                                     
-                                    <!-- Dynamic text changes to red if they type letters or exceed 11 digits -->
                                     <p class="text-[10px] font-bold mt-1 flex justify-between px-1" :class="!isValidPhone && form.contact_number.length > 0 ? 'text-red-500' : 'text-slate-400'">
                                         <span>Must be exactly 11 digits and numbers only</span>
                                         <span :class="form.contact_number.length === 11 && isValidPhone ? 'text-emerald-500' : ''">{{ form.contact_number.length }} / 11</span>
                                     </p>
                                     <InputError :message="form.errors.contact_number" class="mt-1" />
                                 </div>
-
                                 <div class="pt-2">
-                                    <!-- Button strictly disabled until isValidPhone is true -->
                                     <PrimaryButton type="button" @click="nextStep" class="flex w-full justify-center text-sm font-bold py-3 rounded-lg bg-blue-600 hover:bg-blue-700 transition-colors shadow-md disabled:opacity-50 disabled:cursor-not-allowed" :disabled="!idNumber || !isValidPhone">
                                         Next Step
                                     </PrimaryButton>
@@ -153,12 +155,10 @@ const submit = () => {
                                     </select>
                                     <InputError :message="form.errors.program" class="mt-1" />
                                 </div>
-
                                 <div v-if="form.program === 'Other'" class="animate-in fade-in duration-300">
                                     <InputLabel for="custom_program" value="Specify Your Program" class="font-bold text-slate-700" />
                                     <TextInput id="custom_program" v-model="customProgram" type="text" class="mt-1.5 block w-full py-2.5 text-sm rounded-lg shadow-sm border-blue-300 focus:border-blue-500 focus:ring-blue-500" placeholder="e.g. BS Agriculture" required />
                                 </div>
-
                                 <div class="flex gap-3 pt-2">
                                     <button type="button" @click="prevStep" class="w-1/3 py-3 rounded-lg bg-slate-100 text-slate-600 font-bold text-sm hover:bg-slate-200 transition text-center shadow-sm">Back</button>
                                     <PrimaryButton type="button" @click="nextStep" class="w-2/3 flex justify-center text-sm font-bold py-3 rounded-lg bg-blue-600 hover:bg-blue-700 transition-colors shadow-md disabled:opacity-50 disabled:cursor-not-allowed" :disabled="!form.program || (form.program === 'Other' && !customProgram)">
@@ -170,7 +170,6 @@ const submit = () => {
 
                         <transition enter-active-class="transition duration-300 ease-out" enter-from-class="opacity-0 translate-x-4" enter-to-class="opacity-100 translate-x-0" leave-active-class="hidden">
                             <div v-if="currentStep === 3" class="space-y-4">
-                                
                                 <div class="flex flex-col items-center justify-center p-4 bg-slate-50 border border-slate-200 rounded-xl mb-2">
                                     <div class="relative w-16 h-16 mb-2">
                                         <img v-if="user.avatar" :src="user.avatar" referrerpolicy="no-referrer" class="w-16 h-16 rounded-full object-cover border-4 border-white shadow-md bg-white" />
@@ -180,26 +179,22 @@ const submit = () => {
                                     </div>
                                     <span class="text-[9px] font-black uppercase tracking-widest text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full">Synced from Google</span>
                                 </div>
-
                                 <div>
                                     <InputLabel for="password" value="Create LMS Password" class="font-bold text-slate-700" />
                                     <PasswordInput id="password" v-model="form.password" class="mt-1.5 block w-full py-2.5 text-sm shadow-sm" placeholder="Minimum 8 characters" required />
                                     <p class="text-[10px] text-slate-500 mt-1 font-medium">Must be at least 8 characters and contain 1 number.</p>
                                     <InputError :message="form.errors.password" class="mt-1" />
                                 </div>
-
                                 <div>
                                     <InputLabel for="password_confirmation" value="Confirm Password" class="font-bold text-slate-700" />
                                     <PasswordInput id="password_confirmation" v-model="form.password_confirmation" class="mt-1.5 block w-full py-2.5 text-sm shadow-sm" required />
                                 </div>
-
                                 <div class="flex items-start pt-1">
                                     <Checkbox name="terms" v-model:checked="form.terms" required />
                                     <div class="ml-3 text-xs">
                                         <label for="terms" class="font-medium text-slate-600">I agree to the <button type="button" @click="showTermsModal = true" class="text-blue-600 underline bg-transparent border-none p-0 cursor-pointer">Terms</button> and Privacy Policy.</label>
                                     </div>
                                 </div>
-
                                 <div class="flex gap-3 pt-2">
                                     <button type="button" @click="prevStep" class="w-1/3 py-3 rounded-lg bg-slate-100 text-slate-600 font-bold text-sm hover:bg-slate-200 transition text-center shadow-sm">Back</button>
                                     <PrimaryButton type="submit" class="w-2/3 flex justify-center text-sm font-bold py-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 transition-colors shadow-md" :class="{ 'opacity-50 cursor-not-allowed': form.processing }" :disabled="form.processing || !form.terms">
@@ -214,7 +209,6 @@ const submit = () => {
                                 Cancel & Sign Out
                             </Link>
                         </div>
-
                     </form>
                 </div>
             </div>
