@@ -4,6 +4,7 @@ import InputError from '@/Components/InputError.vue';
 import { Head, useForm, Link, usePage, router } from '@inertiajs/vue3';
 import { ref, onMounted, nextTick, computed, watch } from 'vue'; 
 import Modal from '@/Components/Modal.vue';
+import { usePage } from '@inertiajs/vue3';
 import { 
     ChevronLeft, Calendar, Clock, Trophy, 
     FileText, Paperclip, ExternalLink, Send, Undo2, Filter, Eye, Download, CheckCircle2
@@ -23,7 +24,12 @@ const selectedAssignment = ref(null);
 const formComment = useForm({ content: '' });
 const formSubmission = useForm({ files: [], text_content: '' });
 
-// Material Preview State
+const getFileUrl = (path) => {
+    if (!path) return '';
+    const cleanPath = path.replace(/^\/storage\//, '');
+    return `${usePage().props.env.AWS_URL}/${cleanPath}`;
+};
+
 const showMaterialPreview = ref(false);
 const selectedMaterialPath = ref(null);
 
@@ -436,7 +442,7 @@ const leaveClass = () => { if (confirm('Leave this class? You will lose access.'
                             <button @click="openMaterialPreview(lesson.attachment_path)" title="View Material" class="p-2 text-slate-500 bg-slate-50 hover:text-blue-600 hover:bg-blue-50 dark:bg-slate-900/50 dark:text-slate-400 dark:hover:text-blue-400 dark:hover:bg-blue-900/30 rounded-lg transition shadow-sm border border-slate-200 dark:border-slate-700">
                                 <Eye class="w-4 h-4" />
                             </button>
-                            <a :href="`/storage/${lesson.attachment_path}`" download title="Download Material" class="p-2 text-emerald-600 bg-emerald-50 hover:text-white hover:bg-emerald-500 dark:bg-emerald-900/30 dark:text-emerald-500 dark:hover:text-white dark:hover:bg-emerald-600 rounded-lg transition shadow-sm border border-emerald-200 dark:border-emerald-800">
+                            <a :href="getFileUrl(lesson.attachment_path)" download title="Download Material" class="p-2 text-emerald-600 bg-emerald-50 hover:text-white hover:bg-emerald-500 dark:bg-emerald-900/30 dark:text-emerald-500 dark:hover:text-white dark:hover:bg-emerald-600 rounded-lg transition shadow-sm border border-emerald-200 dark:border-emerald-800">
                                 <Download class="w-4 h-4" />
                             </a>
                         </div>
@@ -463,15 +469,15 @@ const leaveClass = () => { if (confirm('Leave this class? You will lose access.'
                 </div>
                 
                 <div class="flex-1 p-4 bg-slate-100 dark:bg-slate-950/50 flex flex-col items-center justify-center relative overflow-hidden">
-                    <iframe v-if="selectedMaterialPath?.toLowerCase().endsWith('.pdf')" :src="`/storage/${selectedMaterialPath}`" class="w-full h-full border-none rounded-lg shadow-sm bg-white dark:bg-slate-900"></iframe>
-                    <img v-else-if="selectedMaterialPath?.match(/\.(jpeg|jpg|png|gif)$/i)" :src="`/storage/${selectedMaterialPath}`" class="max-w-full max-h-full object-contain rounded-lg shadow-sm" />
+                    <iframe v-if="selectedMaterialPath?.toLowerCase().endsWith('.pdf')" :src="getFileUrl(selectedMaterialPath)" class="w-full h-full border-none rounded-lg shadow-sm bg-white dark:bg-slate-900"></iframe>
+                    <img v-else-if="selectedMaterialPath?.match(/\.(jpeg|jpg|png|gif)$/i)" :src="getFileUrl(selectedMaterialPath)" class="max-w-full max-h-full object-contain rounded-lg shadow-sm" />
                     
                     <div v-else class="text-center p-8 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 max-w-sm w-full">
                         <FileText class="w-16 h-16 text-slate-300 dark:text-slate-600 mb-4 mx-auto" />
                         <p class="text-slate-500 font-black mb-1 text-[11px] uppercase tracking-widest">Preview unavailable</p>
                         <p class="text-slate-400 text-[10px] font-bold mb-6">This file type cannot be viewed directly.</p>
                         <div class="flex flex-col gap-2">
-                            <a :href="`/storage/${selectedMaterialPath}`" download class="inline-flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white transition text-[10px] font-black uppercase tracking-widest px-4 py-3 rounded-lg shadow-sm w-full">
+                            <a :href="getFileUrl(selectedMaterialPath)" download class="inline-flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white transition text-[10px] font-black uppercase tracking-widest px-4 py-3 rounded-lg shadow-sm w-full">
                                 <Download class="w-4 h-4" /> Download File
                             </a>
                         </div>
@@ -527,7 +533,7 @@ const leaveClass = () => { if (confirm('Leave this class? You will lose access.'
                                 </div>
                                 <div class="flex gap-3 shrink-0 ml-2">
                                     <button type="button" @click.prevent="openMaterialPreview(path)" class="text-blue-600 hover:text-blue-500 text-[10px] font-black uppercase tracking-widest transition">View</button>
-                                    <a :href="`/storage/${path}`" download class="text-emerald-600 hover:text-emerald-500 text-[10px] font-black uppercase tracking-widest transition">Save</a>
+                                    <a :href="getFileUrl(path)" download class="text-emerald-600 hover:text-emerald-500 text-[10px] font-black uppercase tracking-widest transition">Save</a>
                                 </div>
                             </div>
                         </div>
@@ -549,8 +555,8 @@ const leaveClass = () => { if (confirm('Leave this class? You will lose access.'
                                     <div v-for="(path, index) in getPaths(selectedAssignment.submissions[0].file_paths)" :key="index" class="flex justify-between items-center p-2 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-100 dark:border-slate-700">
                                         <span class="text-[10px] font-bold truncate w-32">Attachment {{ index + 1 }}</span>
                                         <div class="flex gap-2">
-                                            <a :href="`/storage/${path}`" target="_blank" class="text-blue-600 text-[10px] font-black uppercase hover:underline">View</a>
-                                            <a :href="`/storage/${path}`" download class="text-emerald-600 text-[10px] font-black uppercase hover:underline">Save</a>
+                                            <a :href="getFileUrl(path)" target="_blank" class="text-blue-600 text-[10px] font-black uppercase hover:underline">View</a>
+                                            <a :href="getFileUrl(path)" download class="text-emerald-600 text-[10px] font-black uppercase hover:underline">Save</a>
                                         </div>
                                     </div>
                                 </div>

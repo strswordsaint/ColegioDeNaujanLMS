@@ -3,7 +3,8 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, useForm, router } from '@inertiajs/vue3';
 import { ref, computed } from 'vue';
 import Modal from '@/Components/Modal.vue';
-import InputError from '@/Components/InputError.vue'; 
+import InputError from '@/Components/InputError.vue';
+import { usePage } from '@inertiajs/vue3'; 
 import { 
     ChevronLeft, Clock, Trophy, 
     FileText, Edit3, Trash2, Paperclip, ExternalLink, Eye, Download 
@@ -98,7 +99,11 @@ const getPaths = (submission) => {
     try { return JSON.parse(submission.file_paths) || []; } catch (e) { return []; }
 };
 
-const getFileUrl = (path) => `/storage/${path}`;
+const getFileUrl = (path) => {
+    if (!path) return '';
+    const cleanPath = path.replace(/^\/storage\//, '');
+    return `${usePage().props.env.AWS_URL}/${cleanPath}`;
+};
 
 const currentFilePath = computed(() => {
     const paths = getPaths(selectedSubmission.value);

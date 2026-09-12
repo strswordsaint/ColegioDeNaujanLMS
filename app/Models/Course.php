@@ -58,7 +58,7 @@ class Course extends Model
             $course->enrollments()->delete();
             
             if ($course->thumbnail) {
-                Storage::disk('public')->delete(str_replace('/storage/', '', $course->thumbnail));
+                Storage::disk('s3')->delete(str_replace('/storage/', '', $course->thumbnail));
             }
         });
     }

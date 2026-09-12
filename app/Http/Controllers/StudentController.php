@@ -27,7 +27,6 @@ class StudentController extends Controller
         // A student is considered a "late enrollee" if they were officially APPROVED
         // into the class AFTER the assignment's due date. We use updated_at.
         $approvalDate = $enrollment->updated_at ?? $enrollment->created_at ?? $enrollment->enrolled_at ?? now();
-
         return Carbon::parse($approvalDate)->greaterThan(Carbon::parse($assignment->due_date));
     }
 
@@ -98,9 +97,9 @@ class StudentController extends Controller
                 $q->where('closing_date', '>=', now())
                   ->orWhereNull('closing_date');
             })
-            ->whereDoesntHave('submissions', function($q) use ($user) { 
-                 $q->where('user_id', $user->id);  
-             })
+            ->whereDoesntHave('submissions', function($q) use ($user) {
+                  $q->where('user_id', $user->id);
+               })
             ->with('course:id,title')
             ->orderBy('due_date', 'asc')
             ->get()
@@ -137,6 +136,7 @@ class StudentController extends Controller
     public function courses()
     {
         $user = Auth::user();
+
         $courses = $user->enrolledCourses()
             ->where('courses.is_published', true)
             ->with('teacher')
@@ -156,6 +156,7 @@ class StudentController extends Controller
         }
 
         $user = Auth::user();
+
         if ($user->enrolledCourses()->where('course_id', $course->id)->exists()) {
             return back()->withErrors(['enrollment_code' => 'You are already enrolled (or pending approval) in this class!']);
         }
@@ -179,10 +180,10 @@ class StudentController extends Controller
         }
 
         $enrollment = Enrollment::where('user_id', Auth::id())->where('course_id', $course->id)->first();
-
         if (!$enrollment || $enrollment->status !== 'approved') abort(403, 'You are not approved for this class.');
 
         $now = now();
+
         $course->load([
             'teacher',
             'lessons' => function($q) use ($now) {
@@ -267,11 +268,11 @@ class StudentController extends Controller
         }
 
         $existingSubmission = Submission::where('assignment_id', $assignment->id)->where('user_id', Auth::id())->first();
-        $filePaths = [];
 
+        $filePaths = [];
         if ($hasFiles) {
             foreach ($request->file('files') as $file) {
-                $filePaths[] = $file->store('submissions', 'public');
+                $filePaths[] = $file->store('submissions', 's3');
             }
         } else if ($existingSubmission) {
             $filePaths = json_decode($existingSubmission->file_paths, true) ?? [];
@@ -335,14 +336,13 @@ class StudentController extends Controller
 
             // Fetch once per course to optimize speed
             $enrollment = Enrollment::where('user_id', $user->id)->where('course_id', $course->id)->first();
-
             $validAssignments = collect();
 
             foreach($course->assignments as $assignment) {
                 if ($this->isHiddenFromStudent($assignment, $enrollment)) {
                     continue;
                 }
-
+                
                 $validAssignments->push($assignment);
                 
                 $pts = (float) $assignment->points;

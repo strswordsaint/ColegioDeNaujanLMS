@@ -34,7 +34,7 @@ class Lesson extends Model
         parent::boot();         
         static::forceDeleted(function ($lesson) {             
             if ($lesson->attachment_path) {                 
-                Storage::disk('public')->delete($lesson->attachment_path);             
+                Storage::disk('s3')->delete($lesson->attachment_path);            
             }         
         });     
     }     

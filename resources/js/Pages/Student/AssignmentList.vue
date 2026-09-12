@@ -18,9 +18,12 @@ const visibleCourses = computed(() => {
     return props.courses.filter(c => !hiddenCourses.value.includes(c.id));
 });
 
-// ==========================================
-// CRITICAL FIX: Helper functions moved to TOP
-// ==========================================
+const getFileUrl = (path) => {
+    if (!path) return '';
+    const cleanPath = path.replace(/^\/storage\//, '');
+    return `${usePage().props.env.AWS_URL}/${cleanPath}`;
+};
+
 const isCompleted = (a) => a.submissions && a.submissions.length > 0;
 
 const countAssignments = (c, type) => {
@@ -32,7 +35,6 @@ const countAssignments = (c, type) => {
         return type === 'completed' ? done : type === 'upcoming' ? !done && !past : false;
     }).length;
 };
-// ==========================================
 
 const courseSearchQuery = ref('');
 const courseSortOrder = ref('tasks');
@@ -292,7 +294,7 @@ const formatDate = (dateString) => {
                         >
                             <div class="flex items-center gap-2.5 overflow-hidden w-full">
                                 <div class="w-7 h-7 rounded border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 overflow-hidden text-[10px] font-black">
-                                    <img v-if="c.thumbnail && !imageErrors[c.id]" :src="c.thumbnail" @error="handleImageError(c.id)" class="w-full h-full object-cover" />
+                                    <img v-if="c.thumbnail && !imageErrors[c.id]" :src="getFileUrl(c.thumbnail)" @error="handleImageError(c.id)" class="w-full h-full object-cover" />
                                     <span v-else>IMG</span>
                                 </div>
                                 <div class="flex-1 min-w-0">
@@ -434,15 +436,15 @@ const formatDate = (dateString) => {
                 </div>
                 
                 <div class="flex-1 p-4 bg-slate-100 dark:bg-slate-950/50 flex flex-col items-center justify-center relative overflow-hidden">
-                    <iframe v-if="selectedMaterialPath?.toLowerCase().endsWith('.pdf')" :src="`/storage/${selectedMaterialPath}`" class="w-full h-full border-none rounded-lg shadow-sm bg-white dark:bg-slate-900"></iframe>
-                    <img v-else-if="selectedMaterialPath?.match(/\.(jpeg|jpg|png|gif)$/i)" :src="`/storage/${selectedMaterialPath}`" class="max-w-full max-h-full object-contain rounded-lg shadow-sm" />
+                    <iframe v-if="selectedMaterialPath?.toLowerCase().endsWith('.pdf')" :src="getFileUrl(selectedMaterialPath)" class="w-full h-full border-none rounded-lg shadow-sm bg-white dark:bg-slate-900"></iframe>
+                    <img v-else-if="selectedMaterialPath?.match(/\.(jpeg|jpg|png|gif)$/i)" :src="getFileUrl(selectedMaterialPath)" class="max-w-full max-h-full object-contain rounded-lg shadow-sm" />
                     
                     <div v-else class="text-center p-8 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 max-w-sm w-full">
                         <FileText class="w-16 h-16 text-slate-300 dark:text-slate-600 mb-4 mx-auto" />
                         <p class="text-slate-500 font-black mb-1 text-[11px] uppercase tracking-widest">Preview unavailable</p>
                         <p class="text-slate-400 text-[10px] font-bold mb-6">This file type cannot be viewed directly.</p>
                         <div class="flex flex-col gap-2">
-                            <a :href="`/storage/${selectedMaterialPath}`" download class="inline-flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white transition text-[10px] font-black uppercase tracking-widest px-4 py-3 rounded-lg shadow-sm w-full">
+                            <a :href="getFileUrl(selectedMaterialPath)" download class="inline-flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white transition text-[10px] font-black uppercase tracking-widest px-4 py-3 rounded-lg shadow-sm w-full">
                                 <Download class="w-4 h-4" /> Download File
                             </a>
                         </div>
@@ -509,7 +511,7 @@ const formatDate = (dateString) => {
                                 </div>
                                 <div class="flex gap-3 shrink-0 ml-2">
                                     <button type="button" @click.prevent="openMaterialPreview(path)" class="text-blue-600 hover:text-blue-500 text-[10px] font-black uppercase tracking-widest transition">View</button>
-                                    <a :href="`/storage/${path}`" download class="text-emerald-600 hover:text-emerald-500 text-[10px] font-black uppercase tracking-widest transition">Save</a>
+                                    <a :href="getFileUrl(path)" download class="text-emerald-600 hover:text-emerald-500 text-[10px] font-black uppercase tracking-widest transition">Save</a>
                                 </div>
                             </div>
                         </div>
@@ -533,7 +535,7 @@ const formatDate = (dateString) => {
                                         <span class="text-[10px] font-bold truncate w-32">Attachment {{ index + 1 }}</span>
                                         <div class="flex gap-2">
                                             <button type="button" @click.prevent="openMaterialPreview(path)" class="text-blue-600 hover:text-blue-500 text-[10px] font-black uppercase tracking-widest transition">View</button>
-                                            <a :href="`/storage/${path}`" download class="text-emerald-600 hover:text-emerald-500 text-[10px] font-black uppercase tracking-widest transition">Save</a>
+                                            <a :href="getFileUrl(path)" download class="text-emerald-600 hover:text-emerald-500 text-[10px] font-black uppercase tracking-widest transition">Save</a>
                                         </div>
                                     </div>
                                 </div>
