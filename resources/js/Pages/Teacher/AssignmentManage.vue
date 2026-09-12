@@ -19,14 +19,11 @@ const props = defineProps({
     backUrl: String
 });
 
-// ADDED: Combines both graded and ungraded to get the total turn-in count
 const totalSubmissions = computed(() => props.toBeGraded.length + props.graded.length);
 
-// 🪄 PARSE THE SECRET TAG
 const rawDescription = props.assignment.description || '';
 const secretTag = '[RESTRICT_LATE_STUDENTS]';
 const hasHiddenTag = rawDescription.includes(secretTag);
-// Clean it out so the teacher doesn't see the text!
 const cleanDescription = rawDescription.replace(secretTag, '').trim();
 
 const activeTab = ref('details'); 
@@ -55,8 +52,6 @@ const minDateTime = computed(() => {
     return now.toISOString().slice(0, 16);
 });
 
-// Safeguard: If the assignment already has a past due date, allow that date as the minimum 
-// so the teacher isn't blocked from making simple text edits to old assignments.
 const minDueDateTime = computed(() => {
     const originalDue = formatDateForInput(props.assignment.due_date);
     return (originalDue && originalDue < minDateTime.value) ? originalDue : minDateTime.value;

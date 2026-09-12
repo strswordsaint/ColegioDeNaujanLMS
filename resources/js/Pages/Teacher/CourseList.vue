@@ -6,7 +6,6 @@ import Modal from '@/Components/Modal.vue';
 import InputError from '@/Components/InputError.vue';
 import Dropdown from '@/Components/Dropdown.vue';
 import { Plus, Search, Filter } from 'lucide-vue-next'; 
-import { usePage } from '@inertiajs/vue3';
 
 const props = defineProps({
     courses: Array
