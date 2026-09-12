@@ -6,7 +6,6 @@ import Modal from '@/Components/Modal.vue';
 import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import RichTextEditor from '@/Components/RichTextEditor.vue';
-import { usePage } from '@inertiajs/vue3';
 import { 
     ChevronLeft, Calendar, Clock, Trophy, 
     FileText, Paperclip, ExternalLink, Send, Undo2, Filter, Eye, Download, CheckCircle2 
