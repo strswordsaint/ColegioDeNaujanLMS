@@ -37,7 +37,7 @@ class Assignment extends Model
                 $paths = json_decode($assignment->attachment_paths, true);
                 if (is_array($paths)) {
                     foreach ($paths as $path) {
-                        Storage::disk('public')->delete($path);
+                       Storage::disk('s3')->delete($path);
                     }
                 }
             }

@@ -6,10 +6,17 @@ import Modal from '@/Components/Modal.vue';
 import InputError from '@/Components/InputError.vue';
 import Dropdown from '@/Components/Dropdown.vue';
 import { Plus, Search, Filter } from 'lucide-vue-next'; 
+import { usePage } from '@inertiajs/vue3';
 
 const props = defineProps({ joinedCourses: Array });
 const page = usePage();
 const userId = page.props.auth.user.id;
+
+const getFileUrl = (path) => {
+    if (!path) return '';
+    const cleanPath = path.replace(/^\/storage\//, '');
+    return `${usePage().props.env.AWS_URL}/${cleanPath}`;
+};
 
 // Hidden Courses Local Storage State
 const storageKey = `lms_hidden_courses_${userId}`;
@@ -161,7 +168,7 @@ const formatYearLevel = (level) => {
                                 <!-- IMAGE CONTAINER FIX -->
                                 <div class="w-[110px] sm:w-full h-auto sm:aspect-video relative bg-slate-100 dark:bg-slate-900 shrink-0 border-r sm:border-r-0 sm:border-b border-slate-200 dark:border-slate-700 rounded-l-xl sm:rounded-t-xl sm:rounded-bl-none overflow-hidden">
                                     <img v-if="course.thumbnail && !imageErrors[course.id]"
-                                          :src="course.thumbnail"
+                                          :src="getFileUrl(course.thumbnail)"
                                           @error="handleImageError(course.id)"
                                          class="absolute inset-0 w-full h-full object-cover z-0 transition-transform duration-700 group-hover:scale-105" />
                                     

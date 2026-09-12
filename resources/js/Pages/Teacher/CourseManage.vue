@@ -6,6 +6,7 @@ import Modal from '@/Components/Modal.vue';
 import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import RichTextEditor from '@/Components/RichTextEditor.vue';
+import { usePage } from '@inertiajs/vue3';
 import { 
     ChevronLeft, Calendar, Clock, Trophy, 
     FileText, Paperclip, ExternalLink, Send, Undo2, Filter, Eye, Download, CheckCircle2 
@@ -38,6 +39,12 @@ const lessonToResubmit = ref(null);
 
 const showUnarchiveModal = ref(false);
 const lessonToUnarchive = ref(null);
+
+const getFileUrl = (path) => {
+    if (!path) return '';
+    const cleanPath = path.replace(/^\/storage\//, '');
+    return `${usePage().props.env.AWS_URL}/${cleanPath}`;
+};
 
 const formResubmit = useForm({ 
     file: null,
@@ -649,13 +656,12 @@ const inputClass = "w-full rounded-md bg-white dark:bg-slate-900 border border-s
                             
                             <div class="flex flex-wrap items-center justify-end gap-1.5 w-full sm:w-auto shrink-0 mt-2 sm:mt-0">
                                 
-                                <a :href="`/storage/${lesson.attachment_path}`" target="_blank" class="p-1.5 text-slate-500 bg-slate-50 hover:text-blue-600 hover:bg-blue-50 dark:bg-slate-900/50 dark:text-slate-400 dark:hover:text-blue-400 dark:hover:bg-blue-900/30 rounded transition shadow-sm border border-slate-200 dark:border-slate-700" title="View">
+                               <a :href="getFileUrl(lesson.attachment_path)" target="_blank" class="p-1.5 text-slate-500 bg-slate-50 hover:text-blue-600 hover:bg-blue-50 dark:bg-slate-900/50 dark:text-slate-400 dark:hover:text-blue-400 dark:hover:bg-blue-900/30 rounded transition shadow-sm border border-slate-200 dark:border-slate-700" title="View">
                                     <Eye class="w-3.5 h-3.5" />
                                 </a>
-                                <a :href="`/storage/${lesson.attachment_path}`" download class="p-1.5 text-emerald-600 bg-emerald-50 hover:text-white hover:bg-emerald-500 dark:bg-emerald-900/30 dark:text-emerald-500 dark:hover:text-white dark:hover:bg-emerald-600 rounded transition shadow-sm border border-emerald-200 dark:border-emerald-800" title="Download">
+                                <a :href="getFileUrl(lesson.attachment_path)" download class="p-1.5 text-emerald-600 bg-emerald-50 hover:text-white hover:bg-emerald-500 dark:bg-emerald-900/30 dark:text-emerald-500 dark:hover:text-white dark:hover:bg-emerald-600 rounded transition shadow-sm border border-emerald-200 dark:border-emerald-800" title="Download">
                                     <Download class="w-3.5 h-3.5" />
-                                </a>                             
-
+                                </a>
                                 <!-- DEAN HIDE: Material Edit Actions -->
                                 <template v-if="currentUser.role !== 'dean'">
                                     <button v-if="lesson.approval_status === 'rejected'" @click="openResubmitModal(lesson)" class="text-[9px] font-black uppercase tracking-widest bg-blue-600 text-white border border-blue-600 px-3 py-1.5 rounded hover:bg-blue-500 transition shadow-sm">

@@ -6,6 +6,7 @@ import DangerButton from '@/Components/DangerButton.vue';
 import Modal from '@/Components/Modal.vue';
 import { Head, useForm, Link, router } from '@inertiajs/vue3';
 import { ref, reactive, computed } from 'vue';
+import { usePage } from '@inertiajs/vue3';
 
 const props = defineProps({
     course: Object,
@@ -29,10 +30,12 @@ const newImagePreview = ref(null);
 const cropper = reactive({ scale: 1, x: 0, y: 0, isDragging: false, startX: 0, startY: 0 });
 const imageRef = ref(null);
 
-// Helper to determine what image is currently being shown
 const currentDisplayImage = computed(() => {
     if (newImagePreview.value) return newImagePreview.value;
-    if (props.course.thumbnail && !imageError.value) return props.course.thumbnail;
+    if (props.course.thumbnail && !imageError.value) {
+        const cleanPath = props.course.thumbnail.replace(/^\/storage\//, '');
+        return `${usePage().props.env.AWS_URL}/${cleanPath}`;
+    }
     return null;
 });
 

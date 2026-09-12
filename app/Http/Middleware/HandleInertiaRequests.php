@@ -72,6 +72,10 @@ class HandleInertiaRequests extends Middleware
                 'error' => fn () => $request->session()->get('error'),
                 'status' => fn () => $request->session()->get('status'),
             ],
+
+            'env' => [
+                'AWS_URL' => env('AWS_URL'),
+            ],
         ]);
     }
 }
