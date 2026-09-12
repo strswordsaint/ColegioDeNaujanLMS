@@ -32,7 +32,7 @@ class CourseController extends Controller
 
         $thumbnailPath = null;
         if ($request->hasFile('thumbnail')) {
-            $thumbnailPath = $request->file('thumbnail')->store('thumbnails', 'public');
+            $thumbnailPath = $request->file('thumbnail')->store('thumbnails', 's3');
         }
 
         Course::create([
@@ -41,7 +41,7 @@ class CourseController extends Controller
             'title' => $request->title,
             'description' => $request->description,
             'difficulty_level' => $request->difficulty_level,
-            'thumbnail' => $thumbnailPath ? '/storage/' . $thumbnailPath : null,
+            'thumbnail' => $thumbnailPath ? $thumbnailPath : null,
             'is_published' => true, 
         ]);
 
@@ -57,6 +57,7 @@ class CourseController extends Controller
     public function show(Course $course)
     {
         $user = Auth::user();
+
         if ($user->role === 'student') abort(403, 'Students must access courses through the student dashboard.');
         
         // DEAN SECURITY CHECK WITH FAILSAFE
@@ -88,15 +89,19 @@ class CourseController extends Controller
     public function approveStudent(Request $request, Course $course, $userId)
     {
         if ($course->teacher_id !== Auth::id() && Auth::user()->role !== 'admin') abort(403);
+
         $enrollment = $course->enrollments()->where('user_id', $userId)->firstOrFail();
         $enrollment->update(['status' => 'approved']);
+
         User::findOrFail($userId)->notify(new EnrollmentApproved($course));
+
         return back()->with('success', 'Student approved and notified!');
     }
 
     public function removeStudent(Request $request, Course $course, $userId)
     {
         if ($course->teacher_id !== Auth::id() && Auth::user()->role !== 'admin') abort(403);
+
         $course->enrollments()->where('user_id', $userId)->delete(); 
         return back()->with('success', 'Student removed from class.');
     }
@@ -104,6 +109,7 @@ class CourseController extends Controller
     public function edit(Request $request, Course $course)
     {
         if ($course->teacher_id !== Auth::id() && Auth::user()->role !== 'admin') abort(403);
+
         $backUrl = $request->query('source') === 'manage' ? route('teacher.courses.show', $course->id) : route('teacher.courses.index');
         return Inertia::render('Teacher/CourseEdit', ['course' => $course, 'backUrl' => $backUrl]);
     }
@@ -124,9 +130,9 @@ class CourseController extends Controller
         $data = $request->only(['title', 'description', 'difficulty_level', 'teacher_id']);
 
         if ($request->hasFile('thumbnail')) {
-            if ($course->thumbnail) Storage::disk('public')->delete(str_replace('/storage/', '', $course->thumbnail));
-            $path = $request->file('thumbnail')->store('thumbnails', 'public');
-            $data['thumbnail'] = '/storage/' . $path;
+            if ($course->thumbnail) Storage::disk('s3')->delete(str_replace('/storage/', '', $course->thumbnail));
+            $path = $request->file('thumbnail')->store('thumbnails', 's3');
+            $data['thumbnail'] = $path;
         }
 
         $course->update($data); 
@@ -137,6 +143,7 @@ class CourseController extends Controller
     {
         $user = Auth::user();
         if ($course->teacher_id !== $user->id && $user->role !== 'admin') abort(403);
+
         $course->delete();
         return redirect()->route('teacher.courses.index')->with('success', 'Course deleted successfully.');
     }
@@ -161,6 +168,7 @@ class CourseController extends Controller
         // ==========================================
         if ($courseParam === 'all') {
             $managedCoursesQuery = ($user->role === 'admin') ? Course::query() : Course::where('teacher_id', $teacherId);
+
             $coursesWithData = $managedCoursesQuery->with(['teacher:id,name', 'assignments'])
                 ->with(['enrollments' => function($q) {
                     $q->where('status', 'approved')->with(['user' => function($userQ) {
@@ -253,6 +261,7 @@ class CourseController extends Controller
         }
 
         $assignments = $course->assignments()->orderBy('created_at')->get();
+
         $students = User::whereHas('enrolledCourses', function($query) use ($course) {
             $query->where('course_id', $course->id)->where('enrollments.status', 'approved');
         })->with(['submissions' => function($query) use ($course) {
@@ -279,9 +288,9 @@ class CourseController extends Controller
         $course->update(['is_published' => !$course->is_published]);
         
         $msg = $course->is_published 
-            ? 'Course is now LIVE and visible to approved students.' 
-            : 'Course is now HIDDEN. Students can no longer access it.';
-            
+             ? 'Course is now LIVE and visible to approved students.' 
+             : 'Course is now HIDDEN. Students can no longer access it.';
+             
         return back()->with('success', $msg);
     }
 
