@@ -6,6 +6,7 @@ use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\Assignment;
 use App\Models\Submission;
+use App\Models\Recommendation;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Auth;
@@ -58,6 +59,22 @@ class StudentController extends Controller
             });
 
         $pendingCount = $pendingAssignments->count();
+
+        // Fetch AI-generated predictive insights stored in the recommendations table (last 7 days)
+        $aiPredictions = Recommendation::where('user_id', $user->id)
+            ->where('created_at', '>=', now()->subDays(7))
+            ->latest()
+            ->take(3)
+            ->get()
+            ->map(function ($rec) {
+                return [
+                    'id' => 'ai_pred_' . $rec->id,
+                    'category' => $rec->category,
+                    'recommendation_text' => $rec->recommendation_text,
+                    'reasoning' => $rec->reasoning,
+                ];
+            })
+            ->toArray();
 
         $hardCodedRecommendations = [];
 
@@ -127,6 +144,7 @@ class StudentController extends Controller
         foreach ($enrolledCourses as $course) {
             $total = 0; 
             $earned = 0;
+            $courseMaxPoints = 0;
             
             foreach ($course->assignments as $a) {
                 // Skip hidden tasks so it doesn't ruin their grade average!
@@ -134,6 +152,7 @@ class StudentController extends Controller
                     continue; 
                 }
 
+                $courseMaxPoints += $a->points;
                 $sub = $userSubmissions->get($a->id);
                 $isPastDue = $a->due_date && Carbon::parse($a->due_date)->isPast();
 
@@ -149,11 +168,16 @@ class StudentController extends Controller
             $average = ($total > 0) ? ($earned / $total) * 100 : 100;
 
             if ($total > 0 && $average < 75) {
+                $remainingPts = max(0, $courseMaxPoints - $total);
+                $bestPossible = $courseMaxPoints > 0
+                    ? round((($earned + $remainingPts) / $courseMaxPoints) * 100, 1)
+                    : round($average, 1);
+
                 $hardCodedRecommendations[] = [
                     'id' => $course->id,
-                    'category' => 'Academic Warning',
-                    'recommendation_text' => 'You are currently at risk in ' . $course->title . '. Focus on your upcoming tasks.',
-                    'reasoning' => 'Your current grade average is ' . number_format($average, 1) . '%, which is below the passing mark.'
+                    'category' => 'Predictive Academic Warning',
+                    'recommendation_text' => "You are currently at risk in {$course->title} (Projected Final: " . number_format($average, 1) . "% – {$bestPossible}%). Focus on your upcoming tasks.",
+                    'reasoning' => "Your current grade average is " . number_format($average, 1) . "%, which is below the passing mark, with {$remainingPts} remaining points available."
                 ];
             }
         }
@@ -196,7 +220,7 @@ class StudentController extends Controller
             'upcoming' => $upcoming,
             'announcements' => $announcements,
             'recentGrades' => $recentGrades,
-            'recommendations' => $hardCodedRecommendations
+            'recommendations' => array_merge($aiPredictions, $hardCodedRecommendations)
         ]);
     }
 

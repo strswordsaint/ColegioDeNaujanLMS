@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Models\Submission;
 use App\Models\Assignment;
 use App\Models\Enrollment;
+use App\Models\Recommendation;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Auth;
@@ -17,14 +18,12 @@ class TeacherDashboardController extends Controller
     {
         $teacherId = Auth::id();
 
-        // 1. Calculate Real Stats
         $activeCourses = Course::where('teacher_id', $teacherId)->count();
         
-        // FIX: Counts ONLY unique students, and completely ignores deleted 'ghost' accounts!
         $totalStudents = Enrollment::whereHas('course', function($q) use ($teacherId) {
                 $q->where('teacher_id', $teacherId);
             })
-            ->whereHas('user') // Ensures the user actually exists in the database
+            ->whereHas('user')
             ->where('status', 'approved')
             ->distinct('user_id')
             ->count('user_id');
@@ -153,21 +152,33 @@ class TeacherDashboardController extends Controller
             }
         }
 
-        // C. AI Insights Smart Logic
-        $aiInsight = "Your classrooms are looking healthy today. Keep up the great work!";
+       // C. AI Predictive Insights Smart Logic
+        $latestAiForecast = Recommendation::where('category', 'like', 'Predictive Forecast%')
+            ->whereHas('user.enrolledCourses', function ($q) use ($teacherId) {
+                $q->where('enrollments.status', 'approved')
+                ->where('courses.teacher_id', $teacherId);
+            })
+            ->latest()
+            ->first();
+
+        $aiInsight = "Predictive Outlook: Your classrooms are looking healthy today—all enrolled students are currently projected to pass (≥75%).";
         if ($totalFailingStudents > 0 || $totalMissingTasks > 0) {
             $parts = [];
             if ($totalFailingStudents > 0) {
-                $parts[] = "{$totalFailingStudents} students falling below the 75% passing mark";
+                $parts[] = "{$totalFailingStudents} student(s) trending below the 75% passing mark";
             }
             if ($totalMissingTasks > 0) {
-                $parts[] = "{$totalMissingTasks} missing past-due submissions";
+                $parts[] = "{$totalMissingTasks} missing past-due submission(s) impacting projected final grades";
             }
 
-            $insight = "Action needed: You have " . implode(" and ", $parts) . ". ";
+            $insight = "Predictive Risk Alert: You have " . implode(" and ", $parts) . ". ";
 
             if ($mostStrugglingCourse) {
-                $insight .= "'{$mostStrugglingCourse}' needs the most immediate attention.";
+                $insight .= "'{$mostStrugglingCourse}' shows the highest risk of final grade failure and needs the most immediate attention.";
+            }
+
+            if ($latestAiForecast) {
+                $insight .= " Latest AI Trajectory Note: {$latestAiForecast->recommendation_text}";
             }
 
             $aiInsight = $insight;

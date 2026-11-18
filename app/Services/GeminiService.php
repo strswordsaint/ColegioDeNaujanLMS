@@ -206,4 +206,27 @@ class GeminiService
         
         return $this->callGeminiForJson($prompt);
     }
+    public function predictStudentOutcome($studentName, $courseTitle, $currentAvg, $missingCount, $remainingPoints, $totalCoursePoints)
+{
+    if (empty($this->apiKey)) return null;
+
+    $prompt = "
+        Analyze this student's academic trajectory for '{$courseTitle}':
+        - Student: {$studentName}
+        - Current Average: {$currentAvg}% (Passing threshold is 75%)
+        - Missing Past-Due Tasks: {$missingCount}
+        - Remaining Upcoming Points: {$remainingPoints} out of {$totalCoursePoints} total course points.
+        
+        Predict their final course risk level and projected final grade range.
+        Return ONLY valid JSON:
+        {
+            \"risk_level\": \"Low | Moderate | High\",
+            \"projected_grade_range\": \"e.g., 72% - 76%\",
+            \"key_factor\": \"One short sentence explaining the main trajectory driver\",
+            \"actionable_target\": \"Exact score or action needed on remaining tasks to pass\"
+        }
+    ";
+
+    return $this->callGeminiForJson($prompt);
+}
 }

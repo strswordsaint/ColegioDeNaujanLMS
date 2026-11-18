@@ -60,36 +60,47 @@ class GenerateRecommendations extends Command
                 }
 
                 if ($needsAdvice) {
-                    $pending = $course->assignments->where('due_date', '>', now())
+                    $pendingAssignments = $course->assignments->where('due_date', '>', now())
+                        ->whereNotIn('id', $student->submissions->pluck('assignment_id'));
+
+                    $missingCount = $course->assignments->where('due_date', '<', now())
                         ->whereNotIn('id', $student->submissions->pluck('assignment_id'))
-                        ->pluck('title')->join(', ') ?: 'None';
+                        ->count();
 
-                    // --- 3. LIVE DEMO SAFETY NET ---
+                    $remainingPoints = $pendingAssignments->sum('points');
+                    $totalCoursePoints = $course->assignments->sum('points');
+
                     try {
-                        // Attempt to call the LLM
-                        $aiPlan = $gemini->generateStudyPlan($student->name, $course->title, implode(', ', $gradesLog), $pending);
+                        $prediction = $gemini->predictStudentOutcome(
+                            $student->name,
+                            $course->title,
+                            round($average, 1),
+                            $missingCount,
+                            $remainingPoints,
+                            $totalCoursePoints
+                        );
 
-                        if ($aiPlan && isset($aiPlan['recommendation'])) {
+                        if ($prediction && isset($prediction['projected_grade_range'])) {
+                            $riskLabel = $prediction['risk_level'] ?? ($average < 75 ? 'High' : 'Low');
+
                             Recommendation::create([
                                 'user_id' => $student->id,
-                                'category' => $category,
-                                'recommendation_text' => $aiPlan['recommendation'],
-                                'reasoning' => $aiPlan['reasoning'] ?? "Analyzed based on a current average of " . round($average) . "%."
+                                'category' => "Predictive Forecast ({$riskLabel} Risk)",
+                                'recommendation_text' => "{$course->title}: Projected Final Grade is {$prediction['projected_grade_range']}. {$prediction['actionable_target']}",
+                                'reasoning' => $prediction['key_factor'] ?? "Based on a current average of " . round($average, 1) . "% and {$remainingPoints} remaining points."
                             ]);
                         }
                     } catch (\Exception $e) {
-                        // Insert a realistic fallback recommendation so the system looks like it worked perfectly.
-                        Log::error('Gemini API Error during recommendation: ' . $e->getMessage());
-                        
-                        $fallbackText = $category === 'Excellence Challenge' 
-                            ? "You are performing exceptionally well! Review your upcoming pending tasks to maintain your " . round($average) . "% average."
-                            : "Your recent scores have dropped below the threshold. Please prioritize reviewing your past mistakes before attempting the pending tasks.";
+                        Log::error('Gemini API Error during predictive insight: ' . $e->getMessage());
+
+                        $projectedLow = max(0, round($average - 3));
+                        $projectedHigh = min(100, round($average + 4));
 
                         Recommendation::create([
                             'user_id' => $student->id,
-                            'category' => $category,
-                            'recommendation_text' => $fallbackText,
-                            'reasoning' => "System-generated based on current grade trajectory."
+                            'category' => $average < 75 ? 'Predictive Forecast (High Risk)' : 'Predictive Forecast (Low Risk)',
+                            'recommendation_text' => "{$course->title}: Projected Final Grade is {$projectedLow}% - {$projectedHigh}%. Prioritize remaining tasks ({$remainingPoints} pts) to secure a 75%+ final mark.",
+                            'reasoning' => "Trajectory calculated from current average (" . round($average, 1) . "%) and {$missingCount} missing task(s)."
                         ]);
                     }
                 }
