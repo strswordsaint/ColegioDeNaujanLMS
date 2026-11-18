@@ -1,7 +1,7 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head } from '@inertiajs/vue3';
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { Download, Search, FileSpreadsheet, Users, BookOpen } from 'lucide-vue-next';
 import * as XLSX from 'xlsx';
 
@@ -13,9 +13,42 @@ const searchQuery = ref('');
 const selectedCourseId = ref('all');
 const selectedTeacher = ref('all');
 
-const uniqueTeachers = computed(() => {
-    const teachers = new Set(props.courses.map(c => c.teacher));
+// Bidirectional dependent filter lists
+const availableTeachers = computed(() => {
+    const sourceCourses = selectedCourseId.value !== 'all'
+        ? props.courses.filter(c => c.id === selectedCourseId.value)
+        : props.courses;
+
+    const teachers = new Set(sourceCourses.map(c => c.teacher).filter(Boolean));
     return Array.from(teachers).sort();
+});
+
+const availableCourses = computed(() => {
+    if (selectedTeacher.value !== 'all') {
+        return props.courses.filter(c => c.teacher === selectedTeacher.value);
+    }
+    return props.courses;
+});
+
+// Keep both dropdowns in sync if a conflicting selection exists
+watch(selectedTeacher, (newTeacher) => {
+    if (newTeacher !== 'all' && selectedCourseId.value !== 'all') {
+        const stillValid = props.courses.some(
+            c => c.id === selectedCourseId.value && c.teacher === newTeacher
+        );
+        if (!stillValid) {
+            selectedCourseId.value = 'all';
+        }
+    }
+});
+
+watch(selectedCourseId, (newCourseId) => {
+    if (newCourseId !== 'all' && selectedTeacher.value !== 'all') {
+        const course = props.courses.find(c => c.id === newCourseId);
+        if (course && course.teacher !== selectedTeacher.value) {
+            selectedTeacher.value = 'all';
+        }
+    }
 });
 
 const filteredCourses = computed(() => {
@@ -66,7 +99,7 @@ const getStudentTaskScore = (student, assignmentId) => {
     return sub && sub.grade !== null ? sub.grade : null;
 };
 
-// CLEAN EXPORT: Course Code, Teacher Name, Student Name, + Individual Task Scores Only (Quiz 1 (20))
+// CLEAN EXPORT: Single top metadata row (Course Code | Teacher), then Student Name + Task Title (Points)
 const downloadExcel = () => {
     const wb = XLSX.utils.book_new();
 
@@ -75,7 +108,9 @@ const downloadExcel = () => {
         const taskHeaders = assignments.map(a => `${a.title} (${Number(a.points) || 0})`);
 
         const wsData = [
-            ['Course Code', 'Teacher Name', 'Student Name', ...taskHeaders]
+            [`Course Code: ${course.enrollment_code || 'N/A'}`, `Teacher: ${course.teacher || 'Unassigned'}`],
+            [],
+            ['Student Name', ...taskHeaders]
         ];
 
         if (course.students && course.students.length > 0) {
@@ -87,23 +122,19 @@ const downloadExcel = () => {
                 });
 
                 wsData.push([
-                    course.enrollment_code || '',
-                    course.teacher || 'Unassigned',
                     student.name,
                     ...taskScores
                 ]);
             });
         } else {
-            wsData.push([course.enrollment_code || '', course.teacher || 'Unassigned', 'No students enrolled.']);
+            wsData.push(['No students enrolled.']);
         }
 
         const ws = XLSX.utils.aoa_to_sheet(wsData);
 
         ws['!cols'] = [
-            { wch: 16 }, // Course Code
-            { wch: 26 }, // Teacher Name
             { wch: 32 }, // Student Name
-            ...assignments.map(() => ({ wch: 18 }))
+            ...assignments.map(() => ({ wch: 20 }))
         ];
 
         let safeSheetName = course.title.replace(/[\\\/\?\*\[\]]/g, '').substring(0, 31);
@@ -168,7 +199,7 @@ const downloadExcel = () => {
                         <Users class="w-4 h-4 text-slate-500 dark:text-slate-400 pointer-events-none" />
                         <select v-model="selectedTeacher" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer dark:[color-scheme:dark]" title="Filter by Instructor">
                             <option value="all" class="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">All Instructors</option>
-                            <option v-for="teacher in uniqueTeachers" :key="teacher" :value="teacher" class="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">{{ teacher }}</option>
+                            <option v-for="teacher in availableTeachers" :key="teacher" :value="teacher" class="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">{{ teacher }}</option>
                         </select>
                         <span class="absolute bottom-full right-0 mb-1 bg-slate-800 text-white text-[9px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 group-active:opacity-100 pointer-events-none whitespace-nowrap transition-opacity z-50 font-bold uppercase tracking-widest">Instructor</span>
                     </div>
@@ -177,7 +208,7 @@ const downloadExcel = () => {
                         <BookOpen class="w-4 h-4 text-slate-500 dark:text-slate-400 pointer-events-none" />
                         <select v-model="selectedCourseId" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer dark:[color-scheme:dark]" title="Filter by Course">
                             <option value="all" class="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">All Courses</option>
-                            <option v-for="c in courses" :key="c.id" :value="c.id" class="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">{{ c.title }}</option>
+                            <option v-for="c in availableCourses" :key="c.id" :value="c.id" class="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">{{ c.title }}</option>
                         </select>
                         <span class="absolute bottom-full right-0 mb-1 bg-slate-800 text-white text-[9px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 group-active:opacity-100 pointer-events-none whitespace-nowrap transition-opacity z-50 font-bold uppercase tracking-widest">Course</span>
                     </div>
@@ -189,7 +220,7 @@ const downloadExcel = () => {
                         <Users class="w-3.5 h-3.5 text-slate-400 shrink-0" />
                         <select v-model="selectedTeacher" class="bg-transparent border-none text-[9px] font-bold uppercase tracking-widest text-slate-600 dark:text-slate-300 w-full focus:ring-0 cursor-pointer p-0 m-0 truncate dark:[color-scheme:dark]">
                             <option value="all" class="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">All Instructors</option>
-                            <option v-for="teacher in uniqueTeachers" :key="teacher" :value="teacher" class="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">{{ teacher }}</option>
+                            <option v-for="teacher in availableTeachers" :key="teacher" :value="teacher" class="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">{{ teacher }}</option>
                         </select>
                     </div>
                     
@@ -197,7 +228,7 @@ const downloadExcel = () => {
                         <BookOpen class="w-3.5 h-3.5 text-slate-400 shrink-0" />
                         <select v-model="selectedCourseId" class="bg-transparent border-none text-[9px] font-bold uppercase tracking-widest text-slate-600 dark:text-slate-300 w-full focus:ring-0 cursor-pointer p-0 m-0 truncate dark:[color-scheme:dark]">
                             <option value="all" class="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">All Courses</option>
-                            <option v-for="c in courses" :key="c.id" :value="c.id" class="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">{{ c.title }}</option>
+                            <option v-for="c in availableCourses" :key="c.id" :value="c.id" class="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">{{ c.title }}</option>
                         </select>
                     </div>
                 </div>
@@ -224,7 +255,7 @@ const downloadExcel = () => {
                     </div>
 
                     <div v-if="course.students.length > 0">
-                        <!-- DESKTOP TABLE (CLEAN: # + STUDENT + INDIVIDUAL TASKS + OVERALL %) -->
+                        <!-- DESKTOP TABLE -->
                         <div class="hidden md:block overflow-x-auto custom-scrollbar">
                             <table class="w-full text-left text-[9px] sm:text-[10px] text-slate-600 dark:text-slate-400 whitespace-nowrap">
                                 <thead class="uppercase font-black text-slate-400 bg-slate-50/30 dark:bg-slate-900/20 border-b border-slate-100 dark:border-slate-700/50">
@@ -244,7 +275,12 @@ const downloadExcel = () => {
                                             <div class="font-bold text-slate-900 dark:text-white truncate max-w-[180px]">{{ student.name }}</div>
                                         </td>
                                         <td v-for="a in course.assignments" :key="a.id" class="px-2 sm:px-3 py-1 text-center font-medium border-l border-slate-50 dark:border-slate-700/30">
-                                            {{ getStudentTaskScore(student, a.id) ?? '—' }}
+                                            <span v-if="getStudentTaskScore(student, a.id) !== null" class="font-bold text-slate-700 dark:text-slate-200">
+                                                {{ getStudentTaskScore(student, a.id) }}
+                                            </span>
+                                            <span v-else class="text-[7px] font-black text-red-500 dark:text-red-400 uppercase tracking-widest">
+                                                Missing
+                                            </span>
                                         </td>
                                         <td class="px-2 sm:px-3 py-1 text-right border-l border-emerald-100 dark:border-emerald-900/30 bg-emerald-50/10 dark:bg-emerald-900/5">
                                             <span class="text-[9px] font-black px-1.5 py-0.5 rounded"
@@ -280,7 +316,9 @@ const downloadExcel = () => {
                                 </div>
                                 <div v-if="course.assignments && course.assignments.length > 0" class="flex flex-wrap gap-1.5 ml-6">
                                     <span v-for="a in course.assignments" :key="a.id" class="text-[8px] font-bold bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-300 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700">
-                                        {{ a.title }} ({{ a.points }}): <span class="text-slate-900 dark:text-white font-black">{{ getStudentTaskScore(student, a.id) ?? '—' }}</span>
+                                        {{ a.title }} ({{ a.points }}):
+                                        <span v-if="getStudentTaskScore(student, a.id) !== null" class="text-slate-900 dark:text-white font-black">{{ getStudentTaskScore(student, a.id) }}</span>
+                                        <span v-else class="text-red-500 dark:text-red-400 font-black uppercase tracking-wider">Missing</span>
                                     </span>
                                 </div>
                             </div>
