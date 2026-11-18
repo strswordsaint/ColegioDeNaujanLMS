@@ -182,26 +182,17 @@ class CourseController extends Controller
             $allExportData = $coursesWithData->map(function ($c) {
                 $assignments = $c->assignments;
                 $totalCoursePoints = $assignments->sum('points');
-                $maxAssignment = $assignments->where('type', 'assignment')->sum('points');
-                $maxActivity = $assignments->where('type', 'activity')->sum('points');
-                $maxPT = $assignments->where('type', 'performance_task')->sum('points');
 
                 $studentsData = $c->enrollments->filter(fn($e) => $e->user !== null)->map(function ($enrollment) use ($c, $totalCoursePoints) {
                     $student = $enrollment->user;
-                    $studentTotal = 0; $assignmentScore = 0; $activityScore = 0; $ptScore = 0;
+                    $studentTotal = 0;
 
                     if ($c->assignments->isNotEmpty()) {
                         $courseAssignmentIds = $c->assignments->pluck('id')->toArray();
                         $submissions = $student->submissions->whereIn('assignment_id', $courseAssignmentIds);
 
                         foreach($submissions as $sub) {
-                            $grade = (float)$sub->grade;
-                            $type = $sub->assignment ? $sub->assignment->type : null;
-                            
-                            $studentTotal += $grade;
-                            if ($type === 'assignment') $assignmentScore += $grade;
-                            elseif ($type === 'activity') $activityScore += $grade;
-                            elseif ($type === 'performance_task') $ptScore += $grade;
+                            $studentTotal += (float)$sub->grade;
                         }
                     }
 
@@ -212,14 +203,12 @@ class CourseController extends Controller
                         'name' => $student->name,
                         'email' => $student->email,
                         'total_score' => $studentTotal,
-                        'assignment_score' => $assignmentScore,
-                        'activity_score' => $activityScore,
-                        'pt_score' => $ptScore,
                         'percentage' => $percentage,
                         'submissions' => $student->submissions->whereIn('assignment_id', $c->assignments->pluck('id'))->values()->map(function($sub) {
                             return [
                                 'assignment_id' => $sub->assignment_id,
-                                'grade' => $sub->grade
+                                'grade' => $sub->grade,
+                                'file_paths' => $sub->file_paths,
                             ];
                         })->toArray()
                     ];
@@ -231,9 +220,6 @@ class CourseController extends Controller
                     'teacher' => $c->teacher ? $c->teacher->name : 'Unassigned',
                     'assignments' => $c->assignments->map(fn($a) => ['id' => $a->id, 'title' => $a->title, 'type' => $a->type, 'points' => $a->points])->toArray(),
                     'total_points' => $totalCoursePoints,
-                    'max_assignment' => $maxAssignment,
-                    'max_activity' => $maxActivity,
-                    'max_pt' => $maxPT,
                     'students' => $studentsData->sortByDesc('percentage')->values()->toArray()
                 ];
             });

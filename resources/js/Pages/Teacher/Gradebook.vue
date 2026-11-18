@@ -62,7 +62,7 @@ const getSubmission = (student, assignmentId) => {
 };
 
 // ==========================================
-// NEW: Direct File Link Extraction
+// Direct File Link Extraction
 // ==========================================
 const getFileUrl = (path) => {
     if (!path || typeof path !== 'string') return '';
@@ -73,7 +73,6 @@ const getFileUrl = (path) => {
 const getSubmissionLink = (submission, assignmentId) => {
     if (!submission) return route('teacher.assignments.show', assignmentId);
     
-    // If the student uploaded files, extract the first one and link directly to it
     if (submission.file_paths) {
         let parsed = submission.file_paths;
         if (typeof parsed === 'string') {
@@ -90,10 +89,8 @@ const getSubmissionLink = (submission, assignmentId) => {
         }
     }
     
-    // Fallback: If they only submitted text (or it's a Gradebook auto-save), go to the manage page
     return route('teacher.assignments.show', assignmentId);
 };
-// ==========================================
 
 const isLateEnrollee = (student, assignment) => {
     const desc = assignment.description || '';
@@ -190,24 +187,15 @@ const toggleEditMode = async () => {
     }
 };
 
-const maxCategoryPoints = computed(() => {
-    let assign = 0, act = 0, pt = 0, total = 0;
+const totalMaxPoints = computed(() => {
+    let total = 0;
     if (props.assignments) {
         props.assignments.forEach(a => {
-            const pts = Number(a.points) || 0;
-            total += pts;
-            if (a.type === 'assignment') assign += pts;
-            else if (a.type === 'activity') act += pts;
-            else if (a.type === 'performance_task') pt += pts;
+            total += Number(a.points) || 0;
         });
     }
-    return { assign, act, pt, total };
+    return total;
 });
-
-const calculatePS = (score, max) => {
-    if (!max || max === 0) return 0;
-    return ((score / max) * 100).toFixed(1);
-};
 
 const processedStudents = computed(() => {
     if (!props.students) return [];
@@ -215,30 +203,23 @@ const processedStudents = computed(() => {
     const query = searchQuery.value.toLowerCase().trim();
     
     let list = props.students.map(student => {
-        let assignScore = 0, actScore = 0, ptScore = 0, totalScore = 0;
+        let totalScore = 0;
         
         if (props.assignments) {
             props.assignments.forEach(a => {
                 const val = getInputValue(student, a.id);
                 const pts = (val !== '' && val !== null && !isNaN(val)) ? parseFloat(val) : 0;
-                
                 totalScore += pts;
-                if (a.type === 'assignment') assignScore += pts;
-                else if (a.type === 'activity') actScore += pts;
-                else if (a.type === 'performance_task') ptScore += pts;
             });
         }
 
+        const numericAverage = totalMaxPoints.value > 0
+            ? parseFloat(((totalScore / totalMaxPoints.value) * 100).toFixed(1))
+            : 0;
+
         return {
             ...student,
-            assignScore,
-            assignPS: calculatePS(assignScore, maxCategoryPoints.value.assign),
-            actScore,
-            actPS: calculatePS(actScore, maxCategoryPoints.value.act),
-            ptScore,
-            ptPS: calculatePS(ptScore, maxCategoryPoints.value.pt),
-            totalScore,
-            numericAverage: maxCategoryPoints.value.total > 0 ? parseFloat(calculatePS(totalScore, maxCategoryPoints.value.total)) : 0
+            numericAverage
         };
     });
 
@@ -298,71 +279,29 @@ const switchCourse = (e) => {
 };
 
 // ==========================================
-// EXCELJS: CLEAN MINIMAL EXPORT (LEFT ALIGNED)
+// EXCELJS: RAW TASK SCORES ONLY (Quiz 1 (20))
 // ==========================================
 const buildExcelSheet = (workbook, title, assignments, students) => {
     const sheetName = title.replace(/[\\\/\?\*\[\]]/g, '').substring(0, 31);
     
-    // Page Setup: Freeze row 1 (headers) and column 1 (student names)
     const sheet = workbook.addWorksheet(sheetName, {
         views: [{ state: 'frozen', xSplit: 1, ySplit: 1 }]
     });
 
-    // Calculations for Max Scores
-    let maxAssign = 0, maxAct = 0, maxPt = 0, totalPts = 0;
-    assignments.forEach(task => {
-        const points = Number(task.points) || 0;
-        totalPts += points;
-        if (task.type === 'assignment') maxAssign += points;
-        else if (task.type === 'activity') maxAct += points;
-        else if (task.type === 'performance_task') maxPt += points;
-    });
+    const taskHeaders = assignments.map(a => `${a.title} (${Number(a.points) || 0})`);
 
-    const taskHeaders = assignments.map(a => a.title);
-    const taskMaxes = assignments.map(a => Number(a.points) || 0);
-
-    // Setup Columns with basic widths
-    const columns = [{ width: 30 }]; // Student Name Column
-    assignments.forEach(() => columns.push({ width: 15 }));
-    columns.push(
-        { width: 15 }, { width: 15 }, // Assign Raw / PS
-        { width: 15 }, { width: 15 }, // Act Raw / PS
-        { width: 15 }, { width: 15 }, // PT Raw / PS
-        { width: 15 }, { width: 22 }  // Total Raw / Overall Grade
-    );
+    const columns = [{ width: 32 }];
+    assignments.forEach(() => columns.push({ width: 18 }));
     sheet.columns = columns;
 
-    // 1. Main Data Headers (Row 1)
-    const headerRowData = [
-        'Student Name',
-        ...taskHeaders,
-        'Assign (Raw)', 'Assign PS (%)',
-        'Activity (Raw)', 'Activity PS (%)',
-        'PT (Raw)', 'PT PS (%)',
-        'Total Raw', 'Quarterly Grade (%)'
-    ];
-    const headerRow = sheet.addRow(headerRowData);
+    // Row 1: Student Name + Task Title (Points)
+    const headerRow = sheet.addRow(['Student Name', ...taskHeaders]);
     headerRow.eachCell((cell) => {
         cell.font = { name: 'Arial', bold: true, size: 10 };
         cell.alignment = { horizontal: 'left' };
     });
 
-    // 2. Max Possible Score Subheader (Row 2)
-    const maxScoreRowData = [
-        'HIGHEST POSSIBLE SCORE',
-        ...taskMaxes,
-        maxAssign, '100%',
-        maxAct, '100%',
-        maxPt, '100%',
-        totalPts, '100%'
-    ];
-    const maxRow = sheet.addRow(maxScoreRowData);
-    maxRow.eachCell((cell) => {
-        cell.font = { name: 'Arial', bold: true, size: 10 };
-        cell.alignment = { horizontal: 'left' };
-    });
-
-    // 3. Data Population
+    // Row 2+: Student Raw Scores Only (No Highest Possible Score row, No Totals/Averages)
     if (students.length === 0) {
         const emptyRow = sheet.addRow(['No students enrolled.']);
         emptyRow.eachCell((cell) => {
@@ -373,32 +312,12 @@ const buildExcelSheet = (workbook, title, assignments, students) => {
         const sortedStudents = [...students].sort((a, b) => a.name.localeCompare(b.name));
         
         sortedStudents.forEach((student) => {
-            let assignScore = 0, actScore = 0, ptScore = 0, totalScore = 0;
             const rowData = [student.name];
 
             assignments.forEach(task => {
                 const val = getInputValue(student, task.id);
-                const pts = (val !== '' && val !== null && !isNaN(val)) ? parseFloat(val) : 0;
-                
-                totalScore += pts;
-                if (task.type === 'assignment') assignScore += pts;
-                else if (task.type === 'activity') actScore += pts;
-                else if (task.type === 'performance_task') ptScore += pts;
-
-                rowData.push((val !== '' && val !== null) ? Number(val) : 0);
+                rowData.push((val !== '' && val !== null && !isNaN(val)) ? Number(val) : 0);
             });
-
-            const assignPS = maxAssign > 0 ? ((assignScore / maxAssign) * 100).toFixed(1) : '0.0';
-            const actPS = maxAct > 0 ? ((actScore / maxAct) * 100).toFixed(1) : '0.0';
-            const ptPS = maxPt > 0 ? ((ptScore / maxPt) * 100).toFixed(1) : '0.0';
-            const numericAverage = totalPts > 0 ? ((totalScore / totalPts) * 100).toFixed(1) : '0.0';
-
-            rowData.push(
-                assignScore, `${assignPS}%`,
-                actScore, `${actPS}%`,
-                ptScore, `${ptPS}%`,
-                totalScore, `${numericAverage}%`
-            );
 
             const row = sheet.addRow(rowData);
             row.eachCell((cell) => {
@@ -450,14 +369,13 @@ const downloadExcel = async () => {
                 <div class="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full xl:w-auto">
                     <h1 class="text-lg sm:text-xl font-black text-slate-900 dark:text-white flex flex-wrap items-center gap-1.5 sm:gap-2 leading-tight">
                         Gradebook
-                        <!-- Default All Courses selection fallback -->
                         <select @change="switchCourse" class="text-[10px] sm:text-xs font-bold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded py-1 pl-2 pr-6 focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-sm transition max-w-[180px] sm:max-w-none truncate">
                             <option value="all" :selected="!course.id || course.id === 'all'">All Courses</option>
                             <option v-for="c in visibleCourses" :key="c.id" :value="c.id" :selected="c.id === course.id">{{ c.title }}</option>
                         </select>
                     </h1>
                     
-                    <!-- Search Bar aligned alongside filter -->
+                    <!-- Search Bar -->
                     <div class="relative w-full sm:w-64 shrink-0">
                         <div class="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
                             <Search class="h-3.5 w-3.5 text-slate-400" />
@@ -517,34 +435,19 @@ const downloadExcel = async () => {
                         </h3>
                     </div>
                     
-                    <!-- DESKTOP MEGA VIEW TABLE -->
+                    <!-- DESKTOP MEGA VIEW TABLE (CLEAN: STUDENT + TASKS + OVERALL %) -->
                     <div class="hidden md:block overflow-x-auto custom-scrollbar">
                         <table class="w-full text-left whitespace-nowrap">
                             <thead class="bg-slate-50/50 dark:bg-slate-900/40 border-b border-slate-200 dark:border-slate-700 uppercase text-[8px] font-black text-slate-500 tracking-widest">
                                 <tr>
                                     <th class="px-2 py-1.5 sticky left-0 bg-slate-50/90 dark:bg-slate-900/90 backdrop-blur-sm border-r border-slate-200 dark:border-slate-700 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] w-32 sm:w-48">Student Name</th>
                                     
-                                    <!-- COMPACT INDIVIDUAL ASSIGNMENTS -->
-                                    <th v-for="a in c.assignments" :key="a.id" class="px-1.5 py-1.5 min-w-[70px] max-w-[100px] border-r border-slate-200 dark:border-slate-700 text-center bg-white dark:bg-slate-800">
-                                        <span class="block truncate text-[9px] text-slate-700 dark:text-slate-300" :title="a.title">{{ a.title }}</span>
-                                        <span class="text-[7px] text-blue-600 dark:text-blue-400 mt-0.5 block">Max {{ a.points }}</span>
+                                    <th v-for="a in c.assignments" :key="a.id" class="px-1.5 py-1.5 min-w-[75px] max-w-[110px] border-r border-slate-200 dark:border-slate-700 text-center bg-white dark:bg-slate-800">
+                                        <span class="block truncate text-[9px] text-slate-700 dark:text-slate-300" :title="`${a.title} (${a.points})`">{{ a.title }} ({{ a.points }})</span>
                                     </th>
 
-                                    <th class="px-1.5 py-1.5 min-w-[70px] border-r border-slate-200 dark:border-slate-700 text-center bg-blue-50/30 dark:bg-blue-900/10">
-                                        <span class="block text-blue-800 dark:text-blue-300">Assign</span>
-                                        <span class="text-[7px] text-blue-600 dark:text-blue-400 mt-0.5 block">Max {{ c.max_assignment }}</span>
-                                    </th>
-                                    <th class="px-1.5 py-1.5 min-w-[70px] border-r border-slate-200 dark:border-slate-700 text-center bg-purple-50/30 dark:bg-purple-900/10">
-                                        <span class="block text-purple-800 dark:text-purple-300">Act.</span>
-                                        <span class="text-[7px] text-purple-600 dark:text-purple-400 mt-0.5 block">Max {{ c.max_activity }}</span>
-                                    </th>
-                                    <th class="px-1.5 py-1.5 min-w-[70px] border-r border-slate-200 dark:border-slate-700 text-center bg-orange-50/30 dark:bg-orange-900/10">
-                                        <span class="block text-orange-800 dark:text-orange-300">PT</span>
-                                        <span class="text-[7px] text-orange-600 dark:text-orange-400 mt-0.5 block">Max {{ c.max_pt }}</span>
-                                    </th>
-                                    <th class="px-2 py-1.5 min-w-[70px] border-l border-emerald-200 dark:border-emerald-800 text-center bg-emerald-50/40 dark:bg-emerald-900/20 text-emerald-800 dark:text-emerald-400">
+                                    <th class="px-2 py-1.5 min-w-[75px] border-l border-emerald-200 dark:border-emerald-800 text-center bg-emerald-50/40 dark:bg-emerald-900/20 text-emerald-800 dark:text-emerald-400">
                                         <span class="block">Overall</span>
-                                        <span class="text-[7px] text-emerald-600 dark:text-emerald-400 mt-0.5 block">Max {{ c.total_points }}</span>
                                     </th>
                                 </tr>
                             </thead>
@@ -567,10 +470,10 @@ const downloadExcel = async () => {
                                                 <div class="flex-1 px-0.5">
                                                     <template v-if="isEditMode">
                                                         <input
-                                                              type="number"
-                                                              step="0.01"
-                                                              min="0"
-                                                              :max="a.points"
+                                                            type="number"
+                                                            step="0.01"
+                                                            min="0"
+                                                            :max="a.points"
                                                             :value="getInputValue(student, a.id)"
                                                             @input="updatePendingGrade(student.id, a.id, a.points, c.id, $event)"
                                                             class="w-full text-center border-0 bg-transparent focus:ring-1 focus:ring-inset rounded text-[10px] font-bold transition-colors py-0.5 px-0 h-5"
@@ -579,7 +482,7 @@ const downloadExcel = async () => {
                                                         />
                                                     </template>
                                                     <template v-else>
-                                                        <div class="w-full text-center text-[10px] font-bold text-slate-500 dark:text-slate-400 cursor-not-allowed">
+                                                        <div class="w-full text-center text-[10px] font-bold text-slate-600 dark:text-slate-300 cursor-not-allowed">
                                                             {{ getSubmission(student, a.id)?.grade ?? '-' }}
                                                         </div>
                                                     </template>
@@ -593,27 +496,14 @@ const downloadExcel = async () => {
                                         </template>
                                     </td>
 
-                                    <td class="px-1.5 py-1 text-center border-r border-slate-200 dark:border-slate-700 bg-blue-50/10 dark:bg-blue-900/5">
-                                        <div class="font-black text-blue-600 dark:text-blue-400 text-[10px]">{{ student.assignment_score > 0 ? ((student.assignment_score / c.max_assignment) * 100).toFixed(1) : 0 }}%</div>
-                                        <div class="font-bold text-slate-500 dark:text-slate-400 text-[7px] mt-0.5">{{ student.assignment_score }} Raw</div>
-                                    </td>
-                                    <td class="px-1.5 py-1 text-center border-r border-slate-200 dark:border-slate-700 bg-purple-50/10 dark:bg-purple-900/5">
-                                        <div class="font-black text-purple-600 dark:text-purple-400 text-[10px]">{{ student.activity_score > 0 ? ((student.activity_score / c.max_activity) * 100).toFixed(1) : 0 }}%</div>
-                                        <div class="font-bold text-slate-500 dark:text-slate-400 text-[7px] mt-0.5">{{ student.activity_score }} Raw</div>
-                                    </td>
-                                    <td class="px-1.5 py-1 text-center border-r border-slate-200 dark:border-slate-700 bg-orange-50/30 dark:bg-orange-900/10">
-                                        <div class="font-black text-orange-600 dark:text-orange-400 text-[10px]">{{ student.pt_score > 0 ? ((student.pt_score / c.max_pt) * 100).toFixed(1) : 0 }}%</div>
-                                        <div class="font-bold text-slate-500 dark:text-slate-400 text-[7px] mt-0.5">{{ student.pt_score }} Raw</div>
-                                    </td>
-                                    <td class="px-2 py-1 text-center border-l border-emerald-200 dark:border-emerald-800 bg-emerald-50/40 dark:bg-emerald-900/20 text-emerald-800 dark:text-emerald-400">
+                                    <td class="px-2 py-1 text-center border-l border-emerald-200 dark:border-emerald-800 bg-emerald-50/40 dark:bg-emerald-900/20">
                                         <span class="text-[10px] font-black block" :class="student.percentage >= 75 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'">
                                             {{ student.percentage }}%
                                         </span>
-                                        <span class="font-bold text-slate-500 dark:text-slate-400 text-[7px] mt-0.5 block">{{ student.total_score }} Raw</span>
                                     </td>
                                 </tr>
                                 <tr v-if="c.students.length === 0">
-                                    <td :colspan="5 + c.assignments.length" class="p-4 text-center text-[9px] text-slate-400 uppercase font-black tracking-widest bg-slate-50/30 dark:bg-slate-800/30">No students enrolled.</td>
+                                    <td :colspan="2 + c.assignments.length" class="p-4 text-center text-[9px] text-slate-400 uppercase font-black tracking-widest bg-slate-50/30 dark:bg-slate-800/30">No students enrolled.</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -643,14 +533,10 @@ const downloadExcel = async () => {
                                 </div>
                             </button>
                             
-                            <div v-show="expandedStudentId === (student.id + '-' + c.id)" class="p-1.5 border-t border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50">
-                                 
-                                <div v-for="a in c.assignments" :key="a.id" class="flex items-center justify-between bg-white dark:bg-slate-800 p-1.5 rounded border border-slate-100 dark:border-slate-700 shadow-sm mb-1.5">
+                            <div v-show="expandedStudentId === (student.id + '-' + c.id)" class="p-1.5 border-t border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50 space-y-1.5">
+                                <div v-for="a in c.assignments" :key="a.id" class="flex items-center justify-between bg-white dark:bg-slate-800 p-1.5 rounded border border-slate-100 dark:border-slate-700 shadow-sm">
                                      <div class="flex flex-col min-w-0 flex-1 pr-1">
-                                         <div class="flex items-center gap-1 min-w-0">
-                                             <span class="text-[9px] font-bold text-slate-800 dark:text-slate-200 truncate" :title="a.title">{{ a.title }}</span>
-                                             <span class="text-[7px] font-black text-blue-500 uppercase tracking-widest shrink-0">Max {{ a.points }}</span>
-                                         </div>
+                                         <span class="text-[9px] font-bold text-slate-800 dark:text-slate-200 truncate" :title="`${a.title} (${a.points})`">{{ a.title }} ({{ a.points }})</span>
                                      </div>
                                         
                                      <div class="flex items-center gap-1 w-auto shrink-0">
@@ -662,11 +548,11 @@ const downloadExcel = async () => {
                                               
                                              <div class="w-12 shrink-0">
                                                  <input
-                                                       v-if="isEditMode"
+                                                     v-if="isEditMode"
                                                      type="number"
-                                                       step="0.01"
-                                                       min="0"
-                                                       :max="a.points"
+                                                     step="0.01"
+                                                     min="0"
+                                                     :max="a.points"
                                                      :value="getInputValue(student, a.id)"
                                                      @input="updatePendingGrade(student.id, a.id, a.points, c.id, $event)"
                                                      class="w-full h-5 text-center border focus:ring-1 focus:ring-inset rounded text-[9px] font-black transition-colors py-0 px-1 shadow-inner"
@@ -685,24 +571,6 @@ const downloadExcel = async () => {
                                          </template>
                                      </div>
                                 </div>
-
-                                <div class="grid grid-cols-3 gap-1.5">
-                                    <div class="text-center bg-white dark:bg-slate-800 p-1.5 rounded border border-blue-100 dark:border-blue-800/30">
-                                        <span class="block text-[7px] font-black uppercase text-blue-500">Assign</span>
-                                        <span class="block text-[10px] font-black text-blue-600 dark:text-blue-400 mt-0.5">{{ student.assignment_score > 0 ? ((student.assignment_score / c.max_assignment) * 100).toFixed(1) : 0 }}%</span>
-                                        <span class="block text-[7px] font-bold text-slate-500 mt-0.5">{{ student.assignment_score }}/{{ c.max_assignment }}</span>
-                                    </div>
-                                    <div class="text-center bg-white dark:bg-slate-800 p-1.5 rounded border border-purple-100 dark:border-purple-800/30">
-                                        <span class="block text-[7px] font-black uppercase text-purple-500">Act.</span>
-                                        <span class="block text-[10px] font-black text-purple-600 dark:text-purple-400 mt-0.5">{{ student.actPS }}%</span>
-                                        <span class="block text-[7px] font-bold text-slate-500 mt-0.5">{{ student.activity_score }}/{{ c.max_activity }}</span>
-                                    </div>
-                                    <div class="text-center bg-white dark:bg-slate-800 p-1.5 rounded border border-orange-100 dark:border-orange-800/30">
-                                        <span class="block text-[7px] font-black uppercase text-orange-500">PT.</span>
-                                        <span class="block text-[10px] font-black text-orange-600 dark:text-orange-400 mt-0.5">{{ student.pt_score > 0 ? ((student.pt_score / c.max_pt) * 100).toFixed(1) : 0 }}%</span>
-                                        <span class="block text-[7px] font-bold text-slate-500 mt-0.5">{{ student.pt_score }}/{{ c.max_pt }}</span>
-                                    </div>
-                                </div>
                             </div>
                         </div>
                         <div v-if="c.students.length === 0" class="text-center p-3 text-[9px] text-slate-400 uppercase font-black tracking-widest">
@@ -715,7 +583,7 @@ const downloadExcel = async () => {
             <!-- VIEW: SINGLE COURSE SELECTED -->
             <div v-else-if="course && processedStudents.length > 0">
                 
-                <!-- DESKTOP SINGLE COURSE TABLE -->
+                <!-- DESKTOP SINGLE COURSE TABLE (CLEAN: STUDENT + TASKS + OVERALL %) -->
                 <div class="hidden md:block bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-x-auto custom-scrollbar relative">
                     
                     <div v-if="isEditMode" class="p-1.5 text-center text-[10px] font-black uppercase tracking-widest border-b transition-colors"
@@ -731,28 +599,12 @@ const downloadExcel = async () => {
                                     Student Name
                                 </th>
 
-                                <!-- COMPACT INDIVIDUAL ASSIGNMENTS -->
-                                <th v-for="a in assignments" :key="a.id" class="px-1.5 py-1.5 min-w-[70px] max-w-[100px] border-r border-slate-200 dark:border-slate-700 text-center bg-white dark:bg-slate-800">
-                                    <span class="block truncate text-[9px] text-slate-700 dark:text-slate-300" :title="a.title">{{ a.title }}</span>
-                                    <span class="text-[7px] text-blue-600 dark:text-blue-400 mt-0.5 block">Max {{ a.points }}</span>
+                                <th v-for="a in assignments" :key="a.id" class="px-1.5 py-1.5 min-w-[75px] max-w-[110px] border-r border-slate-200 dark:border-slate-700 text-center bg-white dark:bg-slate-800">
+                                    <span class="block truncate text-[9px] text-slate-700 dark:text-slate-300" :title="`${a.title} (${a.points})`">{{ a.title }} ({{ a.points }})</span>
                                 </th>
                                 
-                                <!-- COMPACT CATEGORY SUMMARIES -->
-                                <th class="px-1.5 py-1.5 min-w-[70px] border-r border-slate-200 dark:border-slate-700 text-center bg-blue-50/50 dark:bg-blue-900/20">
-                                    <span class="block text-blue-800 dark:text-blue-300">Assign</span>
-                                    <span class="text-[7px] text-blue-600 dark:text-blue-400 mt-0.5 block">Max {{ maxCategoryPoints.assign }}</span>
-                                </th>
-                                <th class="px-1.5 py-1.5 min-w-[70px] border-r border-slate-200 dark:border-slate-700 text-center bg-purple-50/50 dark:bg-purple-900/20">
-                                    <span class="block text-purple-800 dark:text-purple-300">Act.</span>
-                                    <span class="text-[7px] text-purple-600 dark:text-purple-400 mt-0.5 block">Max {{ maxCategoryPoints.act }}</span>
-                                </th>
-                                <th class="px-1.5 py-1.5 min-w-[70px] border-r border-slate-200 dark:border-slate-700 text-center bg-orange-50/50 dark:bg-orange-900/20">
-                                    <span class="block text-orange-800 dark:text-orange-300">PT.</span>
-                                    <span class="text-[7px] text-orange-600 dark:text-orange-400 mt-0.5 block">Max {{ maxCategoryPoints.pt }}</span>
-                                </th>
-                                <th class="px-2 py-1.5 min-w-[70px] border-l border-emerald-200 dark:border-emerald-800 text-center bg-emerald-50/40 dark:bg-emerald-900/20 text-emerald-800 dark:text-emerald-400">
+                                <th class="px-2 py-1.5 min-w-[75px] border-l border-emerald-200 dark:border-emerald-800 text-center bg-emerald-50/40 dark:bg-emerald-900/20 text-emerald-800 dark:text-emerald-400">
                                     <span class="block">Overall</span>
-                                    <span class="text-[7px] text-emerald-600 dark:text-emerald-400 mt-0.5 block">Max {{ maxCategoryPoints.total }}</span>
                                 </th>
                             </tr>
                         </thead>
@@ -776,10 +628,10 @@ const downloadExcel = async () => {
                                             <div class="flex-1 px-0.5">
                                                 <template v-if="isEditMode">
                                                     <input
-                                                          type="number"
-                                                          step="0.01"
-                                                          min="0"
-                                                          :max="a.points"
+                                                        type="number"
+                                                        step="0.01"
+                                                        min="0"
+                                                        :max="a.points"
                                                         :value="getInputValue(student, a.id)"
                                                         @input="updatePendingGrade(student.id, a.id, a.points, course.id, $event)"
                                                         class="w-full text-center border-0 bg-transparent focus:ring-1 focus:ring-inset rounded text-[10px] font-bold transition-colors py-0.5 px-0 h-5"
@@ -788,7 +640,7 @@ const downloadExcel = async () => {
                                                     />
                                                 </template>
                                                 <template v-else>
-                                                    <div class="w-full text-center text-[10px] font-bold text-slate-500 dark:text-slate-400 cursor-not-allowed">
+                                                    <div class="w-full text-center text-[10px] font-bold text-slate-600 dark:text-slate-300 cursor-not-allowed">
                                                         {{ getSubmission(student, a.id)?.grade ?? '-' }}
                                                     </div>
                                                 </template>
@@ -805,20 +657,6 @@ const downloadExcel = async () => {
                                         </div>
                                     </template>
                                 </td>
-
-                                <!-- COMPACT CATEGORY CELLS -->
-                                <td class="px-1.5 py-1 text-center border-r border-slate-200 dark:border-slate-700 bg-blue-50/20 dark:bg-blue-900/10">
-                                    <div class="font-black text-blue-600 dark:text-blue-400 text-[10px]">{{ student.assignPS }}%</div>
-                                    <div class="font-bold text-slate-500 dark:text-slate-400 text-[7px] mt-0.5">{{ student.assignScore }} Raw</div>
-                                </td>
-                                <td class="px-1.5 py-1 text-center border-r border-slate-200 dark:border-slate-700 bg-purple-50/20 dark:bg-purple-900/10">
-                                    <div class="font-black text-purple-600 dark:text-purple-400 text-[10px]">{{ student.actPS }}%</div>
-                                    <div class="font-bold text-slate-500 dark:text-slate-400 text-[7px] mt-0.5">{{ student.actScore }} Raw</div>
-                                </td>
-                                <td class="px-1.5 py-1 text-center border-r border-slate-200 dark:border-slate-700 bg-orange-50/20 dark:bg-orange-900/10">
-                                    <div class="font-black text-orange-600 dark:text-orange-400 text-[10px]">{{ student.ptPS }}%</div>
-                                    <div class="font-bold text-slate-500 dark:text-slate-400 text-[7px] mt-0.5">{{ student.ptScore }} Raw</div>
-                                </td>
                                 
                                 <td class="px-2 py-1 text-center border-l border-emerald-200 dark:border-emerald-800 bg-emerald-50/40 dark:bg-emerald-900/20">
                                     <span class="text-[10px] font-black block"
@@ -829,7 +667,6 @@ const downloadExcel = async () => {
                                         }">
                                         {{ student.numericAverage }}%
                                     </span>
-                                    <span class="font-bold text-slate-500 dark:text-slate-400 text-[7px] mt-0.5 block">{{ student.totalScore }} Raw</span>
                                 </td>
                                 
                             </tr>
@@ -874,10 +711,7 @@ const downloadExcel = async () => {
                             <div v-for="a in assignments" :key="a.id" class="flex items-center justify-between bg-slate-50 dark:bg-slate-900/50 p-1.5 rounded border border-slate-100 dark:border-slate-700 shadow-sm">
                                 
                                 <div class="flex flex-col min-w-0 flex-1 pr-1">
-                                    <div class="flex items-center gap-1 min-w-0">
-                                        <span class="text-[9px] font-bold text-slate-800 dark:text-slate-200 truncate" :title="a.title">{{ a.title }}</span>
-                                        <span class="text-[7px] font-black text-blue-500 uppercase tracking-widest shrink-0">Max {{ a.points }}</span>
-                                    </div>
+                                    <span class="text-[9px] font-bold text-slate-800 dark:text-slate-200 truncate" :title="`${a.title} (${a.points})`">{{ a.title }} ({{ a.points }})</span>
                                 </div>
                                   
                                 <div class="flex items-center gap-1 w-auto shrink-0">
@@ -889,11 +723,11 @@ const downloadExcel = async () => {
                                           
                                         <div class="w-12 shrink-0">
                                             <input
-                                                  v-if="isEditMode"
+                                                v-if="isEditMode"
                                                 type="number"
-                                                  step="0.01"
-                                                  min="0"
-                                                  :max="a.points"
+                                                step="0.01"
+                                                min="0"
+                                                :max="a.points"
                                                 :value="getInputValue(student, a.id)"
                                                 @input="updatePendingGrade(student.id, a.id, a.points, course.id, $event)"
                                                 class="w-full h-5 text-center border focus:ring-1 focus:ring-inset rounded text-[9px] font-black transition-colors py-0 px-1 shadow-inner"
@@ -916,31 +750,13 @@ const downloadExcel = async () => {
                                 </div>
                             </div>
 
-                            <div class="col-span-1 sm:col-span-2 grid grid-cols-3 gap-1.5 mt-1 pt-1 border-t border-slate-100 dark:border-slate-700">
-                                <div class="text-center bg-blue-50/50 dark:bg-blue-900/10 p-1.5 rounded border border-blue-100 dark:border-blue-800/30">
-                                    <span class="block text-[7px] font-black uppercase text-blue-500">Ass. PS</span>
-                                    <span class="block text-[10px] font-black text-blue-600 dark:text-blue-400 mt-0.5">{{ student.assignPS }}%</span>
-                                    <span class="block text-[7px] font-bold text-slate-500 mt-0.5">{{ student.assignScore }}/{{ maxCategoryPoints.assign }}</span>
-                                </div>
-                                <div class="text-center bg-purple-50/50 dark:bg-purple-900/10 p-1.5 rounded border border-purple-100 dark:border-purple-800/30">
-                                    <span class="block text-[7px] font-black uppercase text-purple-500">Act. PS</span>
-                                    <span class="block text-[10px] font-black text-purple-600 dark:text-purple-400 mt-0.5">{{ student.actPS }}%</span>
-                                    <span class="block text-[7px] font-bold text-slate-500 mt-0.5">{{ student.actScore }}/{{ maxCategoryPoints.act }}</span>
-                                </div>
-                                <div class="text-center bg-orange-50/50 dark:bg-orange-900/10 p-1.5 rounded border border-orange-100 dark:border-orange-800/30">
-                                    <span class="block text-[7px] font-black uppercase text-orange-500">PT. PS</span>
-                                    <span class="block text-[10px] font-black text-orange-600 dark:text-orange-400 mt-0.5">{{ student.ptPS }}%</span>
-                                    <span class="block text-[7px] font-bold text-slate-500 mt-0.5">{{ student.ptScore }}/{{ maxCategoryPoints.pt }}</span>
-                                </div>
-                            </div>
-
                             <div v-if="assignments.length === 0" class="text-center py-2 text-slate-400 text-[8px] uppercase font-black tracking-widest col-span-1 sm:col-span-2">No assignments to grade.</div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- FALLBACK IF NO DATA IS AVAILABLE (Existing) -->
+            <!-- FALLBACK IF NO DATA IS AVAILABLE -->
             <div v-else-if="course && (!course.id || course.id !== 'all')" class="mt-6 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-8 text-center flex flex-col items-center justify-center">
                 <h3 class="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">No Data Available</h3>
                 <p class="text-[10px] text-slate-500 mt-1 uppercase font-bold tracking-widest">
@@ -949,7 +765,6 @@ const downloadExcel = async () => {
                 </p>
             </div>
             
-            <!-- ADD THIS NEW BLOCK: Catches the 'null' course bug -->
             <div v-if="!course" class="mt-12 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-12 text-center flex flex-col items-center justify-center">
                 <svg class="w-16 h-16 text-slate-300 dark:text-slate-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253"></path>

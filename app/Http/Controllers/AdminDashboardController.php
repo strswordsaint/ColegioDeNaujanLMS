@@ -682,7 +682,9 @@ class AdminDashboardController extends Controller
 
     public function gradesOverview()
     {
-        $courses = Course::with(['teacher:id,name', 'assignments'])
+        $courses = Course::with(['teacher:id,name', 'assignments' => function($q) {
+                $q->orderBy('created_at');
+            }])
             ->with(['enrollments' => function($q) {
                 $q->where('status', 'approved')->with(['user' => function($userQ) {
                     $userQ->with(['submissions' => function($subQ) {
@@ -696,33 +698,22 @@ class AdminDashboardController extends Controller
         $formattedData = $courses->map(function ($course) {
             $assignments = $course->assignments;
             $totalCoursePoints = $assignments->sum('points');
-            
-            $maxAssignment = $assignments->where('type', 'assignment')->sum('points');
-            $maxActivity = $assignments->where('type', 'activity')->sum('points');
-            $maxPT = $assignments->where('type', 'performance_task')->sum('points');
+            $courseAssignmentIds = $assignments->pluck('id')->toArray();
 
             $studentsData = $course->enrollments->filter(function($enrollment) {
                 return $enrollment->user !== null;
-            })->map(function ($enrollment) use ($course, $totalCoursePoints) {
+            })->map(function ($enrollment) use ($course, $totalCoursePoints, $courseAssignmentIds) {
                 
                 $student = $enrollment->user;
                 $studentTotal = 0;
-                $assignmentScore = 0;
-                $activityScore = 0;
-                $ptScore = 0;
 
                 if ($course->assignments->isNotEmpty()) {
-                     $courseAssignmentIds = $course->assignments->pluck('id')->toArray();
                      $submissions = $student->submissions->whereIn('assignment_id', $courseAssignmentIds);
 
                      foreach($submissions as $sub) {
-                         $grade = (float)$sub->grade;
-                         $type = $sub->assignment ? $sub->assignment->type : null;
-                         
-                         $studentTotal += $grade;
-                         if ($type === 'assignment') $assignmentScore += $grade;
-                         elseif ($type === 'activity') $activityScore += $grade;
-                         elseif ($type === 'performance_task') $ptScore += $grade;
+                         if ($sub->grade !== null) {
+                             $studentTotal += (float)$sub->grade;
+                         }
                      }
                 }
 
@@ -733,10 +724,13 @@ class AdminDashboardController extends Controller
                     'name' => $student->name,
                     'email' => $student->email,
                     'total_score' => $studentTotal,
-                    'assignment_score' => $assignmentScore,
-                    'activity_score' => $activityScore,
-                    'pt_score' => $ptScore,
-                    'percentage' => $percentage
+                    'percentage' => $percentage,
+                    'submissions' => $student->submissions->whereIn('assignment_id', $courseAssignmentIds)->values()->map(function($sub) {
+                        return [
+                            'assignment_id' => $sub->assignment_id,
+                            'grade' => $sub->grade,
+                        ];
+                    })->toArray()
                 ];
             });
 
@@ -747,10 +741,13 @@ class AdminDashboardController extends Controller
                 'teacher' => $course->teacher->name ?? 'Unassigned',
                 'difficulty_level' => $course->difficulty_level,
                 'total_points' => $totalCoursePoints,
-                'max_assignment' => $maxAssignment,
-                'max_activity' => $maxActivity,
-                'max_pt' => $maxPT,
-                'students' => $studentsData->sortByDesc('percentage')->values()->toArray() 
+                'assignments' => $assignments->map(fn($a) => [
+                    'id' => $a->id,
+                    'title' => $a->title,
+                    'type' => $a->type,
+                    'points' => $a->points,
+                ])->toArray(),
+                'students' => $studentsData->sortBy('name')->values()->toArray() 
             ];
         });
 

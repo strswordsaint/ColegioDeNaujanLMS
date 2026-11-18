@@ -18,7 +18,6 @@ const toggleCourse = (courseId) => {
     expandedCourseId.value = expandedCourseId.value === courseId ? null : courseId;
 };
 
-// Dynamically generate unique filter options from the available data
 const uniqueCourses = computed(() => {
     if (!props.courses) return [];
     return [...new Set(props.courses.map(c => c.title))].sort();
@@ -35,23 +34,19 @@ const isMissing = (task) => {
     return new Date(task.due_date) < new Date();
 };
 
-// Smart Search & Filter Logic
 const processedCourses = computed(() => {
     if (!props.courses) return [];
 
     let result = props.courses;
 
-    // 1. Course Filter
     if (selectedCourseFilter.value !== 'all') {
         result = result.filter(c => c.title === selectedCourseFilter.value);
     }
 
-    // 2. Instructor Filter
     if (selectedInstructorFilter.value !== 'all') {
         result = result.filter(c => c.teacher === selectedInstructorFilter.value);
     }
 
-    // 3. Search Bar Filter
     if (searchQuery.value.trim() !== '') {
         const query = searchQuery.value.toLowerCase();
         result = result.filter(c => 
@@ -60,7 +55,6 @@ const processedCourses = computed(() => {
         );
     }
 
-    // 4. Sort Order
     result = [...result].sort((a, b) => {
         if (sortOrder.value === 'alpha_asc') return a.title.localeCompare(b.title);
         if (sortOrder.value === 'alpha_desc') return b.title.localeCompare(a.title);
@@ -91,14 +85,12 @@ const processedCourses = computed(() => {
                 <!-- ULTRA-COMPACT SEARCH & FILTER BAR -->
                 <div class="flex flex-col sm:flex-row gap-2 mb-3 sm:mb-4 bg-slate-50 dark:bg-slate-900/50 p-2 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm">
                     
-                    <!-- Search -->
                     <div class="relative flex-1 min-w-0">
                         <Search class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
                         <input v-model="searchQuery" type="text" placeholder="Search class or instructor..." 
                                class="w-full h-8 pl-8 pr-3 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded text-[10px] font-bold text-slate-900 dark:text-white focus:ring-1 focus:ring-blue-500 focus:border-transparent transition shadow-inner" />
                     </div>
                     
-                    <!-- Filters Grid -->
                     <div class="grid grid-cols-2 sm:flex gap-2 shrink-0">
                         <div class="relative min-w-0">
                             <BookOpen class="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400" />
@@ -140,11 +132,8 @@ const processedCourses = computed(() => {
                             </div>
                             <div class="flex items-center gap-2 sm:gap-3 shrink-0">
                                 <div class="text-right">
-                                    <span class="block text-[11px] sm:text-xs font-black" :class="course.summary.percentage >= 75 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'">
+                                    <span class="block text-xs sm:text-sm font-black" :class="course.summary.percentage >= 75 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'">
                                         {{ course.summary.percentage }}%
-                                    </span>
-                                    <span class="block text-[7px] sm:text-[8px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
-                                        {{ course.summary.earned_total }} / {{ course.summary.max_total }} Pts
                                     </span>
                                 </div>
                                 <component :is="expandedCourseId === course.id ? ChevronUp : ChevronDown" class="w-3.5 h-3.5 text-slate-400" />
@@ -154,24 +143,6 @@ const processedCourses = computed(() => {
                         <!-- Accordion Body (Details) -->
                         <div v-show="expandedCourseId === course.id" class="p-2 sm:p-3 border-t border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800">
                             
-                            <div class="grid grid-cols-3 gap-1.5 mb-3">
-                                <div class="text-center bg-blue-50/50 dark:bg-blue-900/10 p-1.5 rounded border border-blue-100 dark:border-blue-800/30">
-                                    <span class="block text-[7px] font-black uppercase tracking-widest text-blue-500">Assign</span>
-                                    <span class="block text-[10px] sm:text-[11px] font-black text-blue-600 dark:text-blue-400 mt-0.5">{{ course.summary.assign_ps }}%</span>
-                                    <span class="block text-[7px] font-bold text-slate-500 mt-0.5">{{ course.summary.earned_assign }} / {{ course.summary.max_assign }}</span>
-                                </div>
-                                <div class="text-center bg-purple-50/50 dark:bg-purple-900/10 p-1.5 rounded border border-purple-100 dark:border-purple-800/30">
-                                    <span class="block text-[7px] font-black uppercase tracking-widest text-purple-500">Activity</span>
-                                    <span class="block text-[10px] sm:text-[11px] font-black text-purple-600 dark:text-purple-400 mt-0.5">{{ course.summary.act_ps }}%</span>
-                                    <span class="block text-[7px] font-bold text-slate-500 mt-0.5">{{ course.summary.earned_act }} / {{ course.summary.max_act }}</span>
-                                </div>
-                                <div class="text-center bg-orange-50/50 dark:bg-orange-900/10 p-1.5 rounded border border-orange-100 dark:border-orange-800/30">
-                                    <span class="block text-[7px] font-black uppercase tracking-widest text-orange-500">PT</span>
-                                    <span class="block text-[10px] sm:text-[11px] font-black text-orange-600 dark:text-orange-400 mt-0.5">{{ course.summary.pt_ps }}%</span>
-                                    <span class="block text-[7px] font-bold text-slate-500 mt-0.5">{{ course.summary.earned_pt }} / {{ course.summary.max_pt }}</span>
-                                </div>
-                            </div>
-
                             <h4 class="text-[8px] font-black uppercase tracking-widest text-slate-400 mb-1.5 px-1">Task Breakdown</h4>
                             <div class="space-y-1">
                                 <Link v-for="task in course.assignments" :key="task.id" 

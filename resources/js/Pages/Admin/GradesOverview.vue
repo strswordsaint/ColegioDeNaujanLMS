@@ -33,28 +33,23 @@ const filteredCourses = computed(() => {
         const lowerSearch = searchQuery.value.toLowerCase().trim();
         
         result = result.map(c => {
-            // 1. Check if the course or teacher matches
             const courseMatches = c.title.toLowerCase().includes(lowerSearch) || 
                                   c.teacher.toLowerCase().includes(lowerSearch) ||
                                   (c.enrollment_code && c.enrollment_code.toLowerCase().includes(lowerSearch));
             
-            // 2. Check if any students match the search query
             const matchingStudents = c.students ? c.students.filter(s => 
                 s.name.toLowerCase().includes(lowerSearch) || 
                 (s.email && s.email.toLowerCase().includes(lowerSearch))
             ) : [];
             
-            // If the course or instructor matches, return the course fully intact
             if (courseMatches) {
                 return c;
-            } 
-            // If only a student matches, return the course but filter the table to ONLY show that student
-            else if (matchingStudents.length > 0) {
+            } else if (matchingStudents.length > 0) {
                 return { ...c, students: matchingStudents };
             }
             
-            return null; // Exclude course if nothing matches
-        }).filter(Boolean); // Remove null values
+            return null;
+        }).filter(Boolean);
     }
 
     return result;
@@ -65,84 +60,50 @@ const formatYearLevel = (level) => {
     return levels[level] || level;
 };
 
-const calculatePS = (score, max) => {
-    if (!max || max === 0) return '0%';
-    return ((score / max) * 100).toFixed(1) + '%';
+const getStudentTaskScore = (student, assignmentId) => {
+    if (!student || !student.submissions) return null;
+    const sub = student.submissions.find(s => s.assignment_id === assignmentId);
+    return sub && sub.grade !== null ? sub.grade : null;
 };
 
-// FULLY FORMATTED .XLSX EXCEL EXPORT
+// CLEAN EXPORT: Course Code, Teacher Name, Student Name, + Individual Task Scores Only (Quiz 1 (20))
 const downloadExcel = () => {
     const wb = XLSX.utils.book_new();
 
     filteredCourses.value.forEach(course => {
+        const assignments = course.assignments || [];
+        const taskHeaders = assignments.map(a => `${a.title} (${Number(a.points) || 0})`);
+
         const wsData = [
-            // Row 1: Main Title (Will be merged)
-            ['OFFICIAL CLASS RECORD', '', '', '', '', '', '', '', ''], 
-            // Row 2: Empty for spacing
-            [], 
-            // Row 3: Course and Teacher Info (Will be merged)
-            ['Course:', course.title, '', '', 'Teacher:', course.teacher, '', '', ''], 
-            // Row 4: Empty for spacing
-            [], 
-            
-            // Row 5: DepEd Aligned Headers
-            [
-                'Name of Student', 
-                'Assignments (Raw)', 'Assign. PS (%)', 
-                'Activities (Raw)', 'Activity PS (%)', 
-                'Performance Tasks (Raw)', 'PT PS (%)', 
-                'Initial Grade (Raw)', 'Quarterly Grade (%)'
-            ],
-            
-            // Row 6: Highest Possible Scores (Forced as strings for left-alignment)
-            [
-                'HIGHEST POSSIBLE SCORE', 
-                String(course.max_assignment), '100%', 
-                String(course.max_activity), '100%', 
-                String(course.max_pt), '100%', 
-                String(course.total_points), '100%'
-            ]
+            ['Course Code', 'Teacher Name', 'Student Name', ...taskHeaders]
         ];
 
-        // Row 7+: Add Students (Scores forced as strings for left-alignment)
         if (course.students && course.students.length > 0) {
-            course.students.forEach(student => {
+            const sortedStudents = [...course.students].sort((a, b) => a.name.localeCompare(b.name));
+            sortedStudents.forEach(student => {
+                const taskScores = assignments.map(a => {
+                    const score = getStudentTaskScore(student, a.id);
+                    return score !== null && !isNaN(score) ? Number(score) : 0;
+                });
+
                 wsData.push([
+                    course.enrollment_code || '',
+                    course.teacher || 'Unassigned',
                     student.name,
-                    String(student.assignment_score),
-                    calculatePS(student.assignment_score, course.max_assignment),
-                    String(student.activity_score),
-                    calculatePS(student.activity_score, course.max_activity),
-                    String(student.pt_score),
-                    calculatePS(student.pt_score, course.max_pt),
-                    String(student.total_score),
-                    `${student.percentage}%`
+                    ...taskScores
                 ]);
             });
         } else {
-            wsData.push(['No students enrolled.']);
+            wsData.push([course.enrollment_code || '', course.teacher || 'Unassigned', 'No students enrolled.']);
         }
 
         const ws = XLSX.utils.aoa_to_sheet(wsData);
 
-        // Merge Cells to make the headers look like a professional document
-        ws['!merges'] = [
-            { s: { r: 0, c: 0 }, e: { r: 0, c: 8 } }, // Merge "OFFICIAL CLASS RECORD" across all 9 columns
-            { s: { r: 2, c: 1 }, e: { r: 2, c: 3 } }, // Merge Course Title across 3 columns
-            { s: { r: 2, c: 5 }, e: { r: 2, c: 7 } }, // Merge Teacher Name across 3 columns
-        ];
-
-        // Ensure columns are wide enough
         ws['!cols'] = [
-            { wch: 35 }, // A: Name
-            { wch: 18 }, // B: Assign Raw
-            { wch: 15 }, // C: Assign PS
-            { wch: 18 }, // D: Activity Raw
-            { wch: 15 }, // E: Activity PS
-            { wch: 24 }, // F: PT Raw
-            { wch: 15 }, // G: PT PS
-            { wch: 20 }, // H: Initial Raw
-            { wch: 20 }  // I: Quarterly %
+            { wch: 16 }, // Course Code
+            { wch: 26 }, // Teacher Name
+            { wch: 32 }, // Student Name
+            ...assignments.map(() => ({ wch: 18 }))
         ];
 
         let safeSheetName = course.title.replace(/[\\\/\?\*\[\]]/g, '').substring(0, 31);
@@ -163,7 +124,7 @@ const downloadExcel = () => {
 
     <AuthenticatedLayout>
         
-        <!-- MOBILE FLOATING FAB: Placed perfectly above chat widget, with black/white borders & Tooltips -->
+        <!-- MOBILE FLOATING FAB -->
         <div class="md:hidden fixed bottom-[150px] right-4 z-[999] flex flex-col gap-2 items-center pointer-events-none">
             <button @click="downloadExcel" class="group relative pointer-events-auto flex items-center justify-center w-10 h-10 bg-white dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 rounded-full border border-black dark:border-white shadow-[0_8px_30px_rgba(0,0,0,0.15)] transition-transform active:scale-95">
                 <Download class="w-4 h-4" />
@@ -198,11 +159,10 @@ const downloadExcel = () => {
                     <div class="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
                         <Search class="h-3.5 w-3.5 text-slate-400" />
                     </div>
-                    <!-- Placeholder updated to reflect multi-search functionality -->
                     <input v-model="searchQuery" type="text" placeholder="Search students, courses, or instructors..." class="w-full h-8 pl-8 rounded sm:rounded-md bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-600 sm:border-slate-700 text-slate-900 dark:text-white placeholder-slate-400 focus:ring-1 sm:focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-xs shadow-sm transition-colors" />
                 </div>
 
-                <!-- MOBILE FILTERS (Icon Only, Overlay Select, With Tooltips) -->
+                <!-- MOBILE FILTERS -->
                 <div class="flex sm:hidden flex-row gap-1.5 shrink-0">
                     <div class="relative shrink-0 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded flex items-center justify-center w-8 h-8 shadow-sm transition group hover:bg-slate-50 dark:hover:bg-slate-700">
                         <Users class="w-4 h-4 text-slate-500 dark:text-slate-400 pointer-events-none" />
@@ -223,7 +183,7 @@ const downloadExcel = () => {
                     </div>
                 </div>
 
-                <!-- DESKTOP FILTERS (Expanded with Text) -->
+                <!-- DESKTOP FILTERS -->
                 <div class="hidden sm:grid grid-cols-2 lg:flex lg:flex-row gap-2 w-full lg:w-auto shrink-0 mt-1 lg:mt-0">
                     <div class="shrink-0 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 shadow-sm flex items-center gap-1.5 min-w-[140px]">
                         <Users class="w-3.5 h-3.5 text-slate-400 shrink-0" />
@@ -264,30 +224,29 @@ const downloadExcel = () => {
                     </div>
 
                     <div v-if="course.students.length > 0">
+                        <!-- DESKTOP TABLE (CLEAN: # + STUDENT + INDIVIDUAL TASKS + OVERALL %) -->
                         <div class="hidden md:block overflow-x-auto custom-scrollbar">
                             <table class="w-full text-left text-[9px] sm:text-[10px] text-slate-600 dark:text-slate-400 whitespace-nowrap">
                                 <thead class="uppercase font-black text-slate-400 bg-slate-50/30 dark:bg-slate-900/20 border-b border-slate-100 dark:border-slate-700/50">
                                     <tr>
                                         <th class="px-2 sm:px-3 py-1.5 text-center w-6">#</th>
-                                        <th class="px-2 sm:px-3 py-1.5">Student</th>
-                                        <th class="px-2 sm:px-3 py-1.5 text-right bg-blue-50/30 dark:bg-blue-900/10">Assign. <span class="text-blue-400">({{ course.max_assignment }})</span></th>
-                                        <th class="px-2 sm:px-3 py-1.5 text-right bg-purple-50/30 dark:bg-purple-900/10">Act. <span class="text-purple-400">({{ course.max_activity }})</span></th>
-                                        <th class="px-2 sm:px-3 py-1.5 text-right bg-orange-50/30 dark:bg-orange-900/10">P.T. <span class="text-orange-400">({{ course.max_pt }})</span></th>
-                                        <th class="px-2 sm:px-3 py-1.5 text-right border-l border-slate-100 dark:border-slate-700">Total raw score <span class="text-slate-500">({{ course.total_points }})</span></th>
-                                        <th class="px-2 sm:px-3 py-1.5 text-right">total %</th>
+                                        <th class="px-2 sm:px-3 py-1.5 sticky left-0 bg-slate-50 dark:bg-slate-900 z-10">Student</th>
+                                        <th v-for="a in course.assignments" :key="a.id" class="px-2 sm:px-3 py-1.5 text-center border-l border-slate-100 dark:border-slate-700/50">
+                                            <span class="text-slate-700 dark:text-slate-300">{{ a.title }} ({{ a.points }})</span>
+                                        </th>
+                                        <th class="px-2 sm:px-3 py-1.5 text-right border-l border-emerald-200 dark:border-emerald-800 bg-emerald-50/30 dark:bg-emerald-900/10 text-emerald-700 dark:text-emerald-400">Overall</th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-slate-50 dark:divide-slate-700/30">
                                     <tr v-for="(student, index) in course.students" :key="student.id" class="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition">
                                         <td class="px-2 sm:px-3 py-1 text-center font-bold text-slate-400">{{ index + 1 }}</td>
-                                        <td class="px-2 sm:px-3 py-1">
+                                        <td class="px-2 sm:px-3 py-1 sticky left-0 bg-white dark:bg-slate-800 z-10">
                                             <div class="font-bold text-slate-900 dark:text-white truncate max-w-[180px]">{{ student.name }}</div>
                                         </td>
-                                        <td class="px-2 sm:px-3 py-1 text-right font-medium bg-blue-50/10 dark:bg-blue-900/5">{{ student.assignment_score }}</td>
-                                        <td class="px-2 sm:px-3 py-1 text-right font-medium bg-purple-50/10 dark:bg-purple-900/5">{{ student.activity_score }}</td>
-                                        <td class="px-2 sm:px-3 py-1 text-right font-medium bg-orange-50/10 dark:bg-orange-900/5">{{ student.pt_score }}</td>
-                                        <td class="px-2 sm:px-3 py-1 text-right font-black text-slate-800 dark:text-slate-200 border-l border-slate-50 dark:border-slate-700/50">{{ student.total_score }}</td>
-                                        <td class="px-2 sm:px-3 py-1 text-right">
+                                        <td v-for="a in course.assignments" :key="a.id" class="px-2 sm:px-3 py-1 text-center font-medium border-l border-slate-50 dark:border-slate-700/30">
+                                            {{ getStudentTaskScore(student, a.id) ?? '—' }}
+                                        </td>
+                                        <td class="px-2 sm:px-3 py-1 text-right border-l border-emerald-100 dark:border-emerald-900/30 bg-emerald-50/10 dark:bg-emerald-900/5">
                                             <span class="text-[9px] font-black px-1.5 py-0.5 rounded"
                                                 :class="{
                                                     'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400': student.percentage >= 85,
@@ -302,6 +261,7 @@ const downloadExcel = () => {
                             </table>
                         </div>
 
+                        <!-- MOBILE VIEW -->
                         <div class="md:hidden flex flex-col divide-y divide-slate-50 dark:divide-slate-700/30">
                             <div v-for="(student, index) in course.students" :key="student.id" class="p-2.5 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition flex flex-col gap-1.5">
                                 <div class="flex justify-between items-center gap-2">
@@ -318,13 +278,10 @@ const downloadExcel = () => {
                                         {{ student.percentage }}%
                                     </span>
                                 </div>
-                                <div class="flex items-center justify-between text-[8px] font-bold uppercase tracking-widest ml-6">
-                                    <div class="flex gap-2.5 text-slate-500 dark:text-slate-400">
-                                        <span>Ass: <span class="text-blue-600 dark:text-blue-400">{{ student.assignment_score }}</span></span>
-                                        <span>Act: <span class="text-purple-600 dark:text-purple-400">{{ student.activity_score }}</span></span>
-                                        <span>PT: <span class="text-orange-600 dark:text-orange-400">{{ student.pt_score }}</span></span>
-                                    </div>
-                                    <span class="text-slate-700 dark:text-slate-300">Tot: {{ student.total_score }}/{{ course.total_points }}</span>
+                                <div v-if="course.assignments && course.assignments.length > 0" class="flex flex-wrap gap-1.5 ml-6">
+                                    <span v-for="a in course.assignments" :key="a.id" class="text-[8px] font-bold bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-300 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700">
+                                        {{ a.title }} ({{ a.points }}): <span class="text-slate-900 dark:text-white font-black">{{ getStudentTaskScore(student, a.id) ?? '—' }}</span>
+                                    </span>
                                 </div>
                             </div>
                         </div>
