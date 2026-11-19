@@ -43,6 +43,13 @@ const getProgramDeans = (dept) => {
     return dept.users.filter(u => u.role === 'dean');
 };
 
+const getProgramStudentCount = (programName) => {
+    if (!programName) return 0;
+    return usersList.value.filter(
+        u => u.role === 'student' && u.status === 'active' && u.program === programName
+    ).length;
+};
+
 const isCreateModalOpen = ref(false);
 const isCreateDeptModalOpen = ref(false);
 const isDeleteDeptModalOpen = ref(false);
@@ -665,6 +672,7 @@ const inputClass = "w-full rounded-md bg-white dark:bg-slate-900 border border-s
                                     <tr>
                                         <th class="px-4 py-2.5">Academic Program</th>
                                         <th class="px-4 py-2.5 hidden sm:table-cell">Assigned Dean(s)</th>
+                                        <th class="px-4 py-2.5">Students</th>
                                         <th class="px-4 py-2.5">Teachers</th>
                                         <th class="px-4 py-2.5 text-right">Actions</th>
                                     </tr>
@@ -689,6 +697,15 @@ const inputClass = "w-full rounded-md bg-white dark:bg-slate-900 border border-s
                                                     </span>
                                                 </div>
                                                 <span v-else class="text-[9px] font-bold text-slate-400 uppercase tracking-widest italic">No Dean Assigned</span>
+                                            </td>
+
+                                            <!-- Student Population Count -->
+                                            <td class="px-4 py-2.5">
+                                                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-widest bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800">
+                                                    <Users class="w-3 h-3 shrink-0" />
+                                                    {{ getProgramStudentCount(dept.name) }}
+                                                    {{ getProgramStudentCount(dept.name) === 1 ? 'Student' : 'Students' }}
+                                                </span>
                                             </td>
 
                                             <!-- Clean Dropdown Toggle for Teachers in this Program -->
@@ -722,7 +739,7 @@ const inputClass = "w-full rounded-md bg-white dark:bg-slate-900 border border-s
 
                                         <!-- Expandable Clean Dropdown Row Listing Teachers -->
                                         <tr v-if="expandedProgramId === dept.id" class="bg-slate-50/80 dark:bg-slate-900/40">
-                                            <td colspan="4" class="px-4 py-3 border-t border-slate-100 dark:border-slate-700/60">
+                                            <td colspan="5" class="px-4 py-3 border-t border-slate-100 dark:border-slate-700/60">
                                                 <div class="text-[8px] font-black uppercase tracking-widest text-slate-400 mb-2">
                                                     Teachers under {{ dept.name }}
                                                 </div>
@@ -745,7 +762,7 @@ const inputClass = "w-full rounded-md bg-white dark:bg-slate-900 border border-s
                                     </template>
 
                                     <tr v-if="!departments || departments.length === 0">
-                                        <td colspan="4" class="px-4 py-8 text-center text-slate-400 dark:text-slate-500 text-[10px]">
+                                        <td colspan="5" class="px-4 py-8 text-center text-slate-400 dark:text-slate-500 text-[10px]">
                                             <div class="font-black uppercase tracking-widest mb-1 text-slate-300 dark:text-slate-600">No Academic Programs Established</div>
                                             <div class="font-bold">Click the + button to add an academic program.</div>
                                         </td>
