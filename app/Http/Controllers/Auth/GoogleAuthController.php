@@ -46,10 +46,16 @@ class GoogleAuthController extends Controller
                 event(new Registered($user));
                 return redirect()->route('verification.notice');
             } else {
-                $user->update([
+                $updateData = [
                     'google_id' => $googleUser->getId(),
-                    'avatar' => $googleUser->getAvatar(),
-                ]);
+                ];
+
+                // Only sync Google photo if user hasn't uploaded a custom avatar
+                if (empty($user->avatar) || str_contains($user->avatar, 'googleusercontent.com')) {
+                    $updateData['avatar'] = $googleUser->getAvatar();
+                }
+
+                $user->update($updateData);
             }
 
             if ($user->status === 'suspended') {

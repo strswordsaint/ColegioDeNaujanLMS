@@ -8,6 +8,8 @@ import { Head, Link } from '@inertiajs/vue3';
 defineProps({
     mustVerifyEmail: { type: Boolean },
     status: { type: String },
+    programs: { type: Array, default: () => [] },
+    departmentName: { type: String, default: null },
 });
 </script>
 
@@ -27,6 +29,8 @@ defineProps({
                     <UpdateProfileInformationForm
                         :must-verify-email="mustVerifyEmail"
                         :status="status"
+                        :programs="programs"
+                        :department-name="departmentName"
                         class="max-w-full"
                     />
                 </div>

@@ -25,6 +25,20 @@ class ProfileUpdateRequest extends FormRequest
                 'max:255',
                 Rule::unique(User::class)->ignore($this->user()->id),
             ],
+            'school_id' => ['nullable', 'string', 'max:50'],
+            'program' => ['nullable', 'string', 'max:100'],
+            'contact_number' => ['nullable', 'digits:11'],
+            'avatar' => ['nullable', 'image', 'mimes:jpeg,png,jpg,webp', 'max:2048'],
+            'reset_avatar' => ['nullable', 'boolean'],
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'contact_number.digits' => 'Your contact number must be exactly 11 digits.',
+            'avatar.image' => 'The profile photo must be a valid image file (JPG, PNG, or WebP).',
+            'avatar.max' => 'The profile photo may not be larger than 2MB.',
         ];
     }
 }
