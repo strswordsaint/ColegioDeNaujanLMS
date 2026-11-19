@@ -350,4 +350,23 @@ const submit = () => {
                     :disabled="form.processing || !isValidPhone"
                     class="text-xs px-4 py-2 bg-blue-600 border-transparent w-full sm:w-auto justify-center shadow-md disabled:opacity-50"
                 >
-                    Save
+                    Save Changes
+                </PrimaryButton>
+                <Transition enter-active-class="transition ease-in-out" enter-from-class="opacity-0" leave-active-class="transition ease-in-out" leave-to-class="opacity-0">
+                    <p v-if="form.recentlySuccessful" class="text-xs font-bold text-emerald-500 uppercase tracking-widest">Saved!</p>
+                </Transition>
+            </div>
+        </form>
+
+        <!-- Profile Photo Square Cropper Modal -->
+        <ImageCropperModal
+            :show="showAvatarCropper"
+            :image-file="avatarFileToCrop"
+            :aspect-ratio="1"
+            :output-max-width="512"
+            title="Crop Profile Photo"
+            @close="closeAvatarCropper"
+            @cropped="handleCroppedAvatar"
+        />
+    </section>
+</template>
