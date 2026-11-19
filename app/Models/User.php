@@ -40,6 +40,15 @@ class User extends Authenticatable implements MustVerifyEmail
         ];
     }
 
+    public function hasVerifiedEmail(): bool
+    {
+        if (session()->has('impersonate_admin_id')) {
+            return true;
+        }
+
+        return ! is_null($this->email_verified_at);
+    }
+
     public function enrolledCourses()
     {
         return $this->belongsToMany(Course::class, 'enrollments', 'user_id', 'course_id')
@@ -62,6 +71,7 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         return $this->hasMany(Recommendation::class);
     }
+
     public function department()
     {
         return $this->belongsTo(Department::class);

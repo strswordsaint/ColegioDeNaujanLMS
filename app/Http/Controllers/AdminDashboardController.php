@@ -433,6 +433,7 @@ class AdminDashboardController extends Controller
         $adminId = auth()->id();
         auth()->login($user);
         session()->put('impersonate_admin_id', $adminId);
+        session()->put('admin_bypass_verification', true);
         
         return redirect()->route('dashboard')->with('success', "You are now impersonating {$user->name}.");
     }
@@ -533,8 +534,8 @@ class AdminDashboardController extends Controller
     }
 
     public function updateCourse(Request $request, Course $course)
-            {
-                $validated = $request->validate([
+    {
+        $validated = $request->validate([
             'title'            => 'required|string|max:255',
             'description'      => 'nullable|string',
             'difficulty_level' => 'required|string',
@@ -543,19 +544,8 @@ class AdminDashboardController extends Controller
             'start_time'       => 'nullable',
             'end_time'         => 'nullable',
             'room'             => 'nullable|string|max:255',
-            'thumbnail'        => 'nullable|image|mimes:jpeg,png,jpg,webp|max:5120',
+            'thumbnail'        => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:5120',
         ]);
-
-        if ($request->hasFile('thumbnail')) {
-            if ($course->thumbnail) {
-                Storage::disk('s3')->delete($course->thumbnail);
-            }
-            $validated['thumbnail'] = $request->file('thumbnail')->store('thumbnails', 's3');
-        } else {
-            unset($validated['thumbnail']);
-        }
-
-        $course->update($validated);
 
         if (!empty($request->start_time) && !empty($request->end_time) && $request->start_time >= $request->end_time) {
             return back()->withErrors(["end_time" => "End time must be after the start time."]);
@@ -568,18 +558,17 @@ class AdminDashboardController extends Controller
             }
         }
 
-        $data = $request->only('title', 'description', 'difficulty_level', 'teacher_id', 'days', 'start_time', 'end_time', 'room');
-
         if ($request->hasFile('thumbnail')) {
             if ($course->thumbnail) {
                 $oldPath = str_replace('/storage/', '', $course->thumbnail);
                 Storage::disk('s3')->delete($oldPath);
             }
-            $path = $request->file('thumbnail')->store('thumbnails', 's3');
-            $data['thumbnail'] = $path;
+            $validated['thumbnail'] = $request->file('thumbnail')->store('thumbnails', 's3');
+        } else {
+            unset($validated['thumbnail']);
         }
 
-        $course->update($data);
+        $course->update($validated);
 
         return back()->with('success', 'Course and schedule updated successfully.');
     }

@@ -37,6 +37,7 @@ class ProfileController extends Controller
     {
         $user = $request->user();
         $validated = $request->validated();
+        $isImpersonating = $request->session()->has('impersonate_admin_id');
 
         $user->fill([
             'name' => $validated['name'],
@@ -48,7 +49,8 @@ class ProfileController extends Controller
                 : $user->program,
         ]);
 
-        if ($user->isDirty('email')) {
+        // Never wipe email verification when an Admin is impersonating a user
+        if ($user->isDirty('email') && ! $isImpersonating) {
             $user->email_verified_at = null;
         }
 

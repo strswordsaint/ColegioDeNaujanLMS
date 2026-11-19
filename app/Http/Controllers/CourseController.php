@@ -27,7 +27,7 @@ class CourseController extends Controller
             'title' => 'required|string|max:255',
             'description' => 'nullable|string',
             'difficulty_level' => 'required|in:beginner,intermediate,advanced,final',
-            'thumbnail' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048', 
+            'thumbnail' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:5120', 
         ]);
 
         $thumbnailPath = null;
@@ -124,7 +124,7 @@ class CourseController extends Controller
             'description' => 'nullable|string',
             'difficulty_level' => 'required|in:beginner,intermediate,advanced,final',
             'teacher_id' => 'nullable|exists:users,id', 
-            'thumbnail' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'thumbnail' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:5120',
         ]);
 
         $data = $request->only(['title', 'description', 'difficulty_level', 'teacher_id']);
