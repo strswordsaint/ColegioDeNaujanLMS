@@ -1,4 +1,5 @@
 <script setup>
+import ImageCropperModal from '@/Components/ImageCropperModal.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import Modal from '@/Components/Modal.vue';
 import InputLabel from '@/Components/InputLabel.vue';
@@ -38,6 +39,10 @@ const sortOrder = ref('newest');
 const isCreateModalOpen = ref(false);
 const isEditModalOpen = ref(false);
 const selectedCourse = ref(null);
+
+// --- THUMBNAIL CROPPER STATE ---
+const showThumbnailCropper = ref(false);
+const thumbnailFileToCrop = ref(null);
 
 const selectedIds = ref([]);
 const isBulkDeleteModalOpen = ref(false);
@@ -134,7 +139,7 @@ const filteredCourses = computed(() => {
 
     return result.sort((a, b) => {
         if (sortOrder.value === 'newest') return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
-        if (sortOrder.value === 'oldest') return new Date(a.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+        if (sortOrder.value === 'oldest') return new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime();
         if (sortOrder.value === 'students_high') return (b.enrollments ? b.enrollments.length : 0) - (a.enrollments ? a.enrollments.length : 0);
         if (sortOrder.value === 'students_low') return (a.enrollments ? a.enrollments.length : 0) - (b.enrollments ? b.enrollments.length : 0);
         return 0;
@@ -180,7 +185,25 @@ const handleBulkHide = (hide) => {
     selectedIds.value = [];
 };
 
-const handleEditThumbnailUpload = (e) => { editForm.thumbnail = e.target.files[0]; };
+const handleEditThumbnailUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+        thumbnailFileToCrop.value = file;
+        showThumbnailCropper.value = true;
+    }
+    e.target.value = '';
+};
+
+const handleCroppedAdminThumbnail = (croppedFile) => {
+    editForm.thumbnail = croppedFile;
+    showThumbnailCropper.value = false;
+    thumbnailFileToCrop.value = null;
+};
+
+const closeThumbnailCropper = () => {
+    showThumbnailCropper.value = false;
+    thumbnailFileToCrop.value = null;
+};
 
 const openEditModal = (course) => {
     selectedCourse.value = course;
@@ -785,7 +808,10 @@ const inputClass = "w-full rounded-md bg-white dark:bg-slate-900 border border-s
 
                         <div>
                             <InputLabel value="Thumbnail (Optional)" class="text-[8px] font-bold uppercase text-slate-500 mb-0.5" />
-                            <input type="file" @change="handleEditThumbnailUpload" accept="image/jpeg, image/png, image/jpg" class="w-full text-[9px] text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[8px] file:font-bold file:uppercase file:bg-amber-50 file:text-amber-700 dark:file:bg-amber-900/30 dark:file:text-amber-400 cursor-pointer border border-slate-200 dark:border-slate-700 rounded p-1" />
+                            <input type="file" @change="handleEditThumbnailUpload" accept="image/*" class="w-full text-[9px] text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[8px] file:font-bold file:uppercase file:bg-amber-50 file:text-amber-700 dark:file:bg-amber-900/30 dark:file:text-amber-400 cursor-pointer border border-slate-200 dark:border-slate-700 rounded p-1" />
+                            <p v-if="editForm.thumbnail" class="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 mt-1">
+                                Cropped thumbnail ready to save ({{ editForm.thumbnail.name }})
+                            </p>
                         </div>
                     </div>
 
@@ -878,6 +904,19 @@ const inputClass = "w-full rounded-md bg-white dark:bg-slate-900 border border-s
                 </form>
             </div>
         </Modal>
+
+        <!-- ========================================== -->
+        <!-- THUMBNAIL BOX CROPPER MODAL                -->
+        <!-- ========================================== -->
+        <ImageCropperModal
+            :show="showThumbnailCropper"
+            :image-file="thumbnailFileToCrop"
+            :aspect-ratio="16 / 9"
+            :output-max-width="800"
+            title="Crop Course Thumbnail"
+            @close="closeThumbnailCropper"
+            @cropped="handleCroppedAdminThumbnail"
+        />
 
     </AuthenticatedLayout>
 </template>

@@ -1,10 +1,9 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import InputError from '@/Components/InputError.vue';
-import PrimaryButton from '@/Components/PrimaryButton.vue';
-import Modal from '@/Components/Modal.vue';
-import { Head, useForm, Link, router } from '@inertiajs/vue3';
-import { ref, reactive, nextTick } from 'vue';
+import ImageCropperModal from '@/Components/ImageCropperModal.vue';
+import { Head, useForm, Link } from '@inertiajs/vue3';
+import { ref } from 'vue';
 import { BookOpen, ChevronLeft, ImagePlus } from 'lucide-vue-next';
 
 const form = useForm({
@@ -15,19 +14,8 @@ const form = useForm({
 });
 
 const showCropModal = ref(false);
-const imageToCrop = ref(null);
+const selectedFileToCrop = ref(null);
 const croppedPreview = ref(null);
-const cropper = reactive({
-    scale: 1,
-    x: 0,
-    y: 0,
-    isDragging: false,
-    startX: 0,
-    startY: 0
-});
-const imageRef = ref(null);
-
-// 🛡️ CRITICAL FIX 1: Use a Vue Ref to safely select the hidden file input
 const thumbnailInput = ref(null);
 
 const triggerFileInput = () => {
@@ -36,69 +24,34 @@ const triggerFileInput = () => {
     }
 };
 
-// 1. Handle File Select -> Open Modal
+// 1. Handle File Select -> Open Standard Box Cropper Modal
 const handleFileChange = (event) => {
-    const file = event.target.files[0];
+    const file = event.target.files?.[0];
     if (file) {
-        imageToCrop.value = URL.createObjectURL(file);
-        cropper.scale = 1;
-        cropper.x = 0;
-        cropper.y = 0;
+        selectedFileToCrop.value = file;
         showCropModal.value = true;
     }
-    // Reset the input so the user can re-select the same file if they cancel
     if (event.target) {
         event.target.value = '';
     }
 };
 
-// 2. Cropper Mouse Events (Drag Logic)
-const startDrag = (e) => {
-    e.preventDefault();
-    cropper.isDragging = true;
-    cropper.startX = e.clientX - cropper.x;
-    cropper.startY = e.clientY - cropper.y;
-};
-const onDrag = (e) => {
-    if (!cropper.isDragging) return;
-    e.preventDefault();
-    cropper.x = e.clientX - cropper.startX;
-    cropper.y = e.clientY - cropper.startY;
-};
-const stopDrag = () => {
-    cropper.isDragging = false;
+// 2. Receive Optimized Cropped File
+const handleCroppedFile = (croppedFile) => {
+    form.thumbnail = croppedFile;
+    if (croppedPreview.value) {
+        URL.revokeObjectURL(croppedPreview.value);
+    }
+    croppedPreview.value = URL.createObjectURL(croppedFile);
+    showCropModal.value = false;
+    selectedFileToCrop.value = null;
 };
 
-// 3. Apply Crop (Draw to Canvas)
-const applyCrop = () => {
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    const img = imageRef.value;
-
-    // Set desired output size (16:9 ratio, e.g., 800x450)
-    canvas.width = 800;
-    canvas.height = 450;
-
-    ctx.fillStyle = '#0f172a';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    const scaleFactor = canvas.width / 480;
-
-    ctx.translate(canvas.width / 2, canvas.height / 2);
-    ctx.scale(cropper.scale, cropper.scale);
-    ctx.translate(-canvas.width / 2, -canvas.height / 2);
-    
-    ctx.drawImage(img, cropper.x * scaleFactor, cropper.y * scaleFactor, img.naturalWidth * scaleFactor, img.naturalHeight * scaleFactor);
-    
-    canvas.toBlob((blob) => {
-        const file = new File([blob], "course_thumbnail.jpg", { type: "image/jpeg" });
-        form.thumbnail = file;
-        croppedPreview.value = URL.createObjectURL(blob);
-        showCropModal.value = false;
-    }, 'image/jpeg', 0.9);
+const closeCropModal = () => {
+    showCropModal.value = false;
+    selectedFileToCrop.value = null;
 };
 
-// 🛡️ CRITICAL FIX 2: Ensure the payload is sent as FormData so the cropped image actually uploads
 const submit = () => {
     form.post(route('teacher.courses.store'), {
         forceFormData: true, 
@@ -141,12 +94,14 @@ const submit = () => {
                         <div v-if="croppedPreview" class="mb-3 relative w-full sm:w-2/3 md:w-1/2 aspect-video bg-slate-200 dark:bg-slate-900 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 group shadow-sm">
                             <img :src="croppedPreview" class="w-full h-full object-cover" />
                             <div class="absolute inset-0 bg-black/50 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer backdrop-blur-sm"
-                                 @click="triggerFileInput"> <ImagePlus class="w-6 h-6 text-white mb-1" />
+                                 @click="triggerFileInput">
+                                <ImagePlus class="w-6 h-6 text-white mb-1" />
                                 <span class="text-white text-[9px] font-black uppercase tracking-widest">Change Image</span>
                             </div>
                         </div>
 
-                        <div v-else @click="triggerFileInput" class="w-full sm:w-2/3 md:w-1/2 aspect-video bg-slate-50 dark:bg-slate-900/50 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-blue-400 hover:bg-blue-50/50 dark:hover:bg-slate-800 transition-all group mb-3"> <ImagePlus class="w-6 h-6 text-slate-400 group-hover:text-blue-500 mb-2 transition-colors" />
+                        <div v-else @click="triggerFileInput" class="w-full sm:w-2/3 md:w-1/2 aspect-video bg-slate-50 dark:bg-slate-900/50 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-blue-400 hover:bg-blue-50/50 dark:hover:bg-slate-800 transition-all group mb-3">
+                            <ImagePlus class="w-6 h-6 text-slate-400 group-hover:text-blue-500 mb-2 transition-colors" />
                             <span class="text-[9px] font-black text-slate-500 uppercase tracking-widest group-hover:text-blue-600 transition-colors">Upload Cover</span>
                         </div>
 
@@ -199,38 +154,15 @@ const submit = () => {
             </div>
         </div>
 
-        <Modal :show="showCropModal" @close="showCropModal = false" maxWidth="md">
-            <div class="p-6 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xl">
-                <h3 class="text-sm font-black uppercase tracking-tight text-slate-900 dark:text-white mb-2">Adjust Cover Image</h3>
-                <p class="text-[10px] text-slate-500 dark:text-slate-400 mb-4 font-bold uppercase tracking-widest">Drag to position, slide to zoom.</p>
-                
-                <div class="relative w-full overflow-hidden bg-slate-100 dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-700 cursor-move mb-5 shadow-inner"
-                     style="height: 250px;" 
-                     @mousedown="startDrag" @mousemove="onDrag" @mouseup="stopDrag" @mouseleave="stopDrag">
-                    
-                    <img ref="imageRef" 
-                         :src="imageToCrop" 
-                         class="absolute max-w-none origin-center pointer-events-none"
-                         :style="{ 
-                             transform: `translate(${cropper.x}px, ${cropper.y}px) scale(${cropper.scale})`,
-                             left: '50%', top: '50%', 
-                             marginLeft: '-50%', marginTop: '-50%'
-                         }" />
-                    
-                    <div class="absolute inset-0 pointer-events-none border border-white/40 rounded-lg shadow-[0_0_0_9999px_rgba(0,0,0,0.6)] z-10"></div>
-                </div>
-
-                <div class="flex items-center gap-3 mb-6 bg-slate-50 dark:bg-slate-800/50 p-3 rounded-lg border border-slate-100 dark:border-slate-700/50">
-                    <span class="text-[9px] font-black uppercase tracking-widest text-slate-500">Zoom</span>
-                    <input type="range" min="0.5" max="3" step="0.1" v-model.number="cropper.scale" class="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer dark:bg-slate-700 accent-blue-600">
-                </div>
-
-                <div class="flex justify-end gap-2 border-t border-slate-100 dark:border-slate-800 pt-4">
-                    <button type="button" @click="showCropModal = false" class="px-4 py-2 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 font-black text-[10px] uppercase tracking-widest transition rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800">Cancel</button>
-                    <button type="button" @click="applyCrop" class="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-black text-[10px] uppercase tracking-widest shadow-sm transition">Apply Crop</button>
-                </div>
-            </div>
-        </Modal>
+        <ImageCropperModal
+            :show="showCropModal"
+            :image-file="selectedFileToCrop"
+            :aspect-ratio="16 / 9"
+            :output-max-width="800"
+            title="Crop Cover Image"
+            @close="closeCropModal"
+            @cropped="handleCroppedFile"
+        />
 
     </AuthenticatedLayout>
 </template>

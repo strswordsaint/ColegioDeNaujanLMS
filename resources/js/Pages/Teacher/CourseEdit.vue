@@ -1,12 +1,10 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import InputError from '@/Components/InputError.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import DangerButton from '@/Components/DangerButton.vue';
-import Modal from '@/Components/Modal.vue';
-import { Head, useForm, Link, router } from '@inertiajs/vue3';
-import { ref, reactive, computed } from 'vue';
-import { usePage } from '@inertiajs/vue3';
+import ImageCropperModal from '@/Components/ImageCropperModal.vue';
+import { Head, useForm, Link, router, usePage } from '@inertiajs/vue3';
+import { ref, computed } from 'vue';
 
 const props = defineProps({
     course: Object,
@@ -23,12 +21,10 @@ const form = useForm({
 
 const imageError = ref(false);
 
-// --- CROPPER STATE ---
+// --- STANDARD BOX CROPPER STATE ---
 const showCropModal = ref(false);
-const imageToCrop = ref(null);
+const selectedFileToCrop = ref(null);
 const newImagePreview = ref(null);
-const cropper = reactive({ scale: 1, x: 0, y: 0, isDragging: false, startX: 0, startY: 0 });
-const imageRef = ref(null);
 
 const currentDisplayImage = computed(() => {
     if (newImagePreview.value) return newImagePreview.value;
@@ -40,57 +36,57 @@ const currentDisplayImage = computed(() => {
 });
 
 const handleFileChange = (event) => {
-    const file = event.target.files[0];
+    const file = event.target.files?.[0];
     if (file) {
-        imageToCrop.value = URL.createObjectURL(file);
-        resetCropper();
+        selectedFileToCrop.value = file;
         showCropModal.value = true;
     }
     event.target.value = '';
 };
 
-// NEW: Edit the image that is currently visible
-const editExistingImage = () => {
-    if (currentDisplayImage.value) {
-        imageToCrop.value = currentDisplayImage.value;
-        resetCropper();
+// Re-crop either a newly picked file or the existing S3 thumbnail
+const editExistingImage = async () => {
+    if (form.thumbnail instanceof File) {
+        selectedFileToCrop.value = form.thumbnail;
         showCropModal.value = true;
+        return;
+    }
+
+    if (currentDisplayImage.value) {
+        try {
+            const response = await fetch(currentDisplayImage.value);
+            const blob = await response.blob();
+            selectedFileToCrop.value = new File([blob], 'course_thumbnail.webp', { type: blob.type || 'image/webp' });
+            showCropModal.value = true;
+        } catch (err) {
+            alert('Please click "Upload New" to select and crop a new image.');
+        }
     }
 };
 
-const resetCropper = () => {
-    cropper.scale = 1; cropper.x = 0; cropper.y = 0;
+const handleCroppedFile = (croppedFile) => {
+    form.thumbnail = croppedFile;
+    if (newImagePreview.value) {
+        URL.revokeObjectURL(newImagePreview.value);
+    }
+    newImagePreview.value = URL.createObjectURL(croppedFile);
+    showCropModal.value = false;
+    selectedFileToCrop.value = null;
 };
 
-// Drag Logic
-const startDrag = (e) => { e.preventDefault(); cropper.isDragging = true; cropper.startX = e.clientX - cropper.x; cropper.startY = e.clientY - cropper.y; };
-const onDrag = (e) => { if (!cropper.isDragging) return; e.preventDefault(); cropper.x = e.clientX - cropper.startX; cropper.y = e.clientY - cropper.startY; };
-const stopDrag = () => { cropper.isDragging = false; };
-
-const applyCrop = () => {
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    const img = imageRef.value;
-    canvas.width = 800; canvas.height = 450;
-    ctx.fillStyle = '#0f172a'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
-    const scaleFactor = canvas.width / 480; 
-    ctx.translate(canvas.width/2, canvas.height/2);
-    ctx.scale(cropper.scale, cropper.scale);
-    ctx.translate(-canvas.width/2, -canvas.height/2);
-    ctx.drawImage(img, cropper.x * scaleFactor, cropper.y * scaleFactor, img.naturalWidth * scaleFactor, img.naturalHeight * scaleFactor);
-
-    canvas.toBlob((blob) => {
-        // We create a new file from the blob so it can be uploaded
-        const file = new File([blob], "course_thumbnail.jpg", { type: "image/jpeg" });
-        form.thumbnail = file;
-        newImagePreview.value = URL.createObjectURL(blob);
-        showCropModal.value = false;
-    }, 'image/jpeg', 0.9);
+const closeCropModal = () => {
+    showCropModal.value = false;
+    selectedFileToCrop.value = null;
 };
 
-const submit = () => { form.post(route('teacher.courses.update', props.course.id)); };
-const deleteCourse = () => { if (confirm('Are you really sure?')) router.delete(route('teacher.courses.destroy', props.course.id)); };
+const submit = () => {
+    form.post(route('teacher.courses.update', props.course.id), {
+        forceFormData: true,
+    });
+};
+const deleteCourse = () => {
+    if (confirm('Are you really sure?')) router.delete(route('teacher.courses.destroy', props.course.id));
+};
 </script>
 
 <template>
@@ -131,7 +127,7 @@ const deleteCourse = () => { if (confirm('Are you really sure?')) router.delete(
                         </div>
 
                         <div class="relative w-full h-32 overflow-hidden rounded group bg-slate-200 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
-                            <img v-if="currentDisplayImage" :src="currentDisplayImage" class="w-full h-full object-cover" />
+                            <img v-if="currentDisplayImage" :src="currentDisplayImage" @error="imageError = true" class="w-full h-full object-cover" />
                             <div v-else class="w-full h-full flex items-center justify-center text-slate-400 text-[10px] font-bold uppercase">No Image</div>
                         </div>
                     </div>
@@ -167,21 +163,14 @@ const deleteCourse = () => { if (confirm('Are you really sure?')) router.delete(
             </div>
         </div>
 
-        <Modal :show="showCropModal" @close="showCropModal = false">
-            <div class="p-5 bg-white dark:bg-slate-800 rounded-lg">
-                <h3 class="font-bold text-sm text-slate-900 dark:text-white mb-3">Adjust Thumbnail</h3>
-                <div class="relative w-full overflow-hidden bg-slate-100 dark:bg-slate-900 rounded border border-slate-300 dark:border-slate-700 cursor-move mb-3" style="height: 200px;" @mousedown="startDrag" @mousemove="onDrag" @mouseup="stopDrag" @mouseleave="stopDrag">
-                    <img ref="imageRef" :src="imageToCrop" class="absolute max-w-none origin-center pointer-events-none" :style="{ transform: `translate(${cropper.x}px, ${cropper.y}px) scale(${cropper.scale})`, left: '50%', top: '50%', marginLeft: '-50%', marginTop: '-50%' }" crossorigin="anonymous" />
-                </div>
-                <div class="flex items-center gap-3 mb-4">
-                    <span class="text-[10px] font-bold text-slate-500 uppercase">Zoom</span>
-                    <input type="range" min="0.5" max="3" step="0.1" v-model.number="cropper.scale" class="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-600">
-                </div>
-                <div class="flex justify-end gap-2">
-                    <button type="button" @click="showCropModal = false" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 rounded text-xs font-bold transition shadow-sm border border-slate-200 dark:border-slate-600">Cancel</button>
-                    <button type="button" @click="applyCrop" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-xs font-bold shadow-sm transition border border-transparent">Apply Crop</button>
-                </div>
-            </div>
-        </Modal>
+        <ImageCropperModal
+            :show="showCropModal"
+            :image-file="selectedFileToCrop"
+            :aspect-ratio="16 / 9"
+            :output-max-width="800"
+            title="Crop Thumbnail"
+            @close="closeCropModal"
+            @cropped="handleCroppedFile"
+        />
     </AuthenticatedLayout>
 </template>

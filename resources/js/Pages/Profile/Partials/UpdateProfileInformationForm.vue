@@ -3,6 +3,7 @@ import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
+import ImageCropperModal from '@/Components/ImageCropperModal.vue';
 import { Link, useForm, usePage } from '@inertiajs/vue3';
 import { ref, computed } from 'vue';
 import { Camera, RotateCcw } from 'lucide-vue-next';
@@ -34,6 +35,8 @@ const customProgram = ref(
 
 const fileInput = ref(null);
 const previewUrl = ref(null);
+const showAvatarCropper = ref(false);
+const avatarFileToCrop = ref(null);
 
 const form = useForm({
     _method: 'patch',
@@ -71,14 +74,33 @@ const handleAvatarChange = (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    form.avatar = file;
+    avatarFileToCrop.value = file;
+    showAvatarCropper.value = true;
+    event.target.value = '';
+};
+
+const handleCroppedAvatar = (croppedFile) => {
+    form.avatar = croppedFile;
     form.reset_avatar = false;
-    previewUrl.value = URL.createObjectURL(file);
+    if (previewUrl.value) {
+        URL.revokeObjectURL(previewUrl.value);
+    }
+    previewUrl.value = URL.createObjectURL(croppedFile);
+    showAvatarCropper.value = false;
+    avatarFileToCrop.value = null;
+};
+
+const closeAvatarCropper = () => {
+    showAvatarCropper.value = false;
+    avatarFileToCrop.value = null;
 };
 
 const resetToGoogleSync = () => {
     form.avatar = null;
     form.reset_avatar = true;
+    if (previewUrl.value) {
+        URL.revokeObjectURL(previewUrl.value);
+    }
     previewUrl.value = null;
     if (fileInput.value) {
         fileInput.value.value = '';
@@ -98,6 +120,9 @@ const submit = () => {
         onSuccess: () => {
             form.avatar = null;
             form.reset_avatar = false;
+            if (previewUrl.value) {
+                URL.revokeObjectURL(previewUrl.value);
+            }
             previewUrl.value = null;
             if (fileInput.value) {
                 fileInput.value.value = '';
@@ -325,12 +350,4 @@ const submit = () => {
                     :disabled="form.processing || !isValidPhone"
                     class="text-xs px-4 py-2 bg-blue-600 border-transparent w-full sm:w-auto justify-center shadow-md disabled:opacity-50"
                 >
-                    Save Changes
-                </PrimaryButton>
-                <Transition enter-active-class="transition ease-in-out" enter-from-class="opacity-0" leave-active-class="transition ease-in-out" leave-to-class="opacity-0">
-                    <p v-if="form.recentlySuccessful" class="text-xs font-bold text-emerald-500 uppercase tracking-widest">Saved!</p>
-                </Transition>
-            </div>
-        </form>
-    </section>
-</template>
+                    Save
