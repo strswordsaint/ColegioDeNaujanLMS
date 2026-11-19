@@ -41,4 +41,12 @@ class ProfileUpdateRequest extends FormRequest
             'avatar.max' => 'The profile photo may not be larger than 2MB.',
         ];
     }
+   protected function prepareForValidation(): void
+    {
+        if ($this->has('email') && is_string($this->email)) {
+            $this->merge([
+                'email' => strtolower(trim($this->email)),
+            ]);
+        }
+    }
 }

@@ -533,18 +533,29 @@ class AdminDashboardController extends Controller
     }
 
     public function updateCourse(Request $request, Course $course)
-    {
-        $request->validate([
-            'title' => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'difficulty_level' => 'required|in:beginner,intermediate,advanced,final',
-            'teacher_id' => 'required|exists:users,id',
-            'thumbnail' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-            'days' => 'nullable|array',
-            'start_time' => 'nullable', 
-            'end_time' => 'nullable',   
-            'room' => 'nullable|string|max:100',
+            {
+                $validated = $request->validate([
+            'title'            => 'required|string|max:255',
+            'description'      => 'nullable|string',
+            'difficulty_level' => 'required|string',
+            'teacher_id'       => 'required|exists:users,id',
+            'days'             => 'nullable|array',
+            'start_time'       => 'nullable',
+            'end_time'         => 'nullable',
+            'room'             => 'nullable|string|max:255',
+            'thumbnail'        => 'nullable|image|mimes:jpeg,png,jpg,webp|max:5120',
         ]);
+
+        if ($request->hasFile('thumbnail')) {
+            if ($course->thumbnail) {
+                Storage::disk('s3')->delete($course->thumbnail);
+            }
+            $validated['thumbnail'] = $request->file('thumbnail')->store('thumbnails', 's3');
+        } else {
+            unset($validated['thumbnail']);
+        }
+
+        $course->update($validated);
 
         if (!empty($request->start_time) && !empty($request->end_time) && $request->start_time >= $request->end_time) {
             return back()->withErrors(["end_time" => "End time must be after the start time."]);

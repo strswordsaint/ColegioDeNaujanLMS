@@ -237,16 +237,20 @@ const applyCrop = () => {
 
         canvas.toBlob(
             (blob) => {
-                if (!blob) return;
-                const baseName = (props.imageFile?.name || 'cropped-photo').replace(/\.[^/.]+$/, '');
-                const croppedFile = new File([blob], `${baseName}.webp`, {
-                    type: 'image/webp',
+                if (!blob) {
+                    isProcessing.value = false;
+                    return;
+                }
+                const originalName = props.imageFile?.name?.replace(/\.[^/.]+$/, '') || 'cropped';
+                const croppedFile = new File([blob], `${originalName}.jpg`, {
+                    type: 'image/jpeg',
                     lastModified: Date.now(),
                 });
+                isProcessing.value = false;
                 emit('cropped', croppedFile);
             },
-            'image/webp',
-            0.88
+            'image/jpeg',
+            0.92
         );
     };
     img.src = imageSrc.value;

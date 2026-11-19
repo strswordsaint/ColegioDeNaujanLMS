@@ -812,6 +812,7 @@ const inputClass = "w-full rounded-md bg-white dark:bg-slate-900 border border-s
                             <p v-if="editForm.thumbnail" class="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 mt-1">
                                 Cropped thumbnail ready to save ({{ editForm.thumbnail.name }})
                             </p>
+                            <InputError :message="editForm.errors.thumbnail" class="mt-1 text-[9px]" />
                         </div>
                     </div>
 

@@ -56,7 +56,7 @@ const editExistingImage = async () => {
         try {
             const response = await fetch(currentDisplayImage.value);
             const blob = await response.blob();
-            selectedFileToCrop.value = new File([blob], 'course_thumbnail.webp', { type: blob.type || 'image/webp' });
+            selectedFileToCrop.value = new File([blob], 'course_thumbnail.jpg', { type: blob.type || 'image/jpeg' });
             showCropModal.value = true;
         } catch (err) {
             alert('Please click "Upload New" to select and crop a new image.');

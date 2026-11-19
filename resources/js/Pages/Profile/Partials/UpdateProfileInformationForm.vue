@@ -108,6 +108,8 @@ const resetToGoogleSync = () => {
 };
 
 const submit = () => {
+    form.email = (form.email || '').trim().toLowerCase();
+
     if (user.role === 'student') {
         form.program = selectedProgram.value === 'Other'
             ? customProgram.value
