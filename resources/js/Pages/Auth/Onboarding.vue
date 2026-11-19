@@ -10,7 +10,11 @@ import InputError from '@/Components/InputError.vue';
 import Modal from '@/Components/Modal.vue';
 
 const props = defineProps({
-    user: Object
+    user: Object,
+    programs: {
+        type: Array,
+        default: () => []
+    }
 });
 
 const currentStep = ref(1);
@@ -31,7 +35,7 @@ const form = useForm({
 const customProgram = ref('');
 const showTermsModal = ref(false);
 
-// NEW: Strict validation check - must be exactly 11 digits, strictly numbers
+// Strict validation check - must be exactly 11 digits, strictly numbers
 const isValidPhone = computed(() => {
     return /^\d{11}$/.test(form.contact_number);
 });
@@ -147,10 +151,9 @@ const submit = () => {
                                     <InputLabel for="program" value="Academic Program" class="font-bold text-slate-700" />
                                     <select id="program" v-model="form.program" class="mt-1.5 block w-full border-slate-300 rounded-lg shadow-sm py-2.5 text-sm focus:border-blue-500 focus:ring-blue-500 cursor-pointer" required>
                                         <option value="" disabled>Select your program...</option>
-                                        <option value="BTVTEd - Computer Hardware Servicing">BTVTEd - Major Computer Hardware Servicing</option>
-                                        <option value="BTVTEd - Welding and Steel Fabrication">BTVTEd - Welding and Steel Fabrication</option>
-                                        <option value="BPA">BPA</option>
-                                        <option value="BSIS">BSIS</option>
+                                        <option v-for="prog in programs" :key="prog.id" :value="prog.name">
+                                            {{ prog.name }}
+                                        </option>
                                         <option value="Other">Other (Type manually)</option>
                                     </select>
                                     <InputError :message="form.errors.program" class="mt-1" />

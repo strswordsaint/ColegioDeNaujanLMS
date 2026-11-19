@@ -6,7 +6,7 @@ import InputError from '@/Components/InputError.vue';
 import { Head, router, useForm, Link } from '@inertiajs/vue3';
 import { ref, computed, watch } from 'vue';
 import * as XLSX from 'xlsx';
-import { Users, Building2, Plus, ShieldAlert, Key, UserCog, Trash2, X, Search, Filter, BookOpen, Calendar, Download } from 'lucide-vue-next';
+import { Users, Building2, Plus, ShieldAlert, Key, UserCog, Trash2, X, Search, Filter, BookOpen, Calendar, Download, ChevronDown } from 'lucide-vue-next';
 
 const props = defineProps({
     users: [Array, Object],
@@ -26,6 +26,22 @@ const archiveSubTab = ref('student');
 const filterProgram = ref('all');
 const filterYear = ref('all');
 const sortBy = ref('newest');
+
+// Track which Academic Program row has its Teachers dropdown expanded
+const expandedProgramId = ref(null);
+const toggleProgramTeachers = (programId) => {
+    expandedProgramId.value = expandedProgramId.value === programId ? null : programId;
+};
+
+const getProgramTeachers = (dept) => {
+    if (!dept || !dept.users) return [];
+    return dept.users.filter(u => u.role === 'teacher');
+};
+
+const getProgramDeans = (dept) => {
+    if (!dept || !dept.users) return [];
+    return dept.users.filter(u => u.role === 'dean');
+};
 
 const isCreateModalOpen = ref(false);
 const isCreateDeptModalOpen = ref(false);
@@ -62,6 +78,7 @@ const itemsPerPage = 15;
 
 watch(() => form.role, (newRole) => {
     if (newRole === 'student' || newRole === 'admin') form.department_id = '';
+    if (newRole !== 'student') form.program = '';
 });
 
 watch(() => roleForm.role, (newRole) => {
@@ -133,7 +150,7 @@ const toggleSelection = (id) => {
 };
 
 // ==========================================
-// UPDATED: AUTO-GENERATE USERNAME ONLY
+// AUTO-GENERATE USERNAME ONLY
 // ==========================================
 const generateAdminEmail = () => {
     const randomNums = Math.floor(100 + Math.random() * 900);
@@ -178,15 +195,6 @@ const generateSchoolId = () => {
         form.school_id = `${year}-${randomNums}`;
     }
 };
-
-watch(() => form.role, (newRole) => {
-    if (newRole === 'student' || newRole === 'admin') {
-        form.department_id = '';
-    }
-    if (newRole !== 'student') {
-        form.program = '';
-    }
-});
 
 const submitUser = () => {
     form.post(route('admin.users.store'), { preserveScroll: true, onSuccess: () => { isCreateModalOpen.value = false; form.reset(); alert('Account created and verified!'); } });
@@ -248,7 +256,7 @@ const exportToExcel = () => {
             [], 
             [
                 'ID / Employee No.', 'Full Name', 'Email Address', 
-                'Program/Department', 'System Role', 'Status', 'Date Registered'
+                'Academic Program', 'System Role', 'Status', 'Date Registered'
             ]
         ];
 
@@ -299,7 +307,7 @@ const inputClass = "w-full rounded-md bg-white dark:bg-slate-900 border border-s
     <Head title="System Directory" />
     <AuthenticatedLayout>
 
-        <!-- MOBILE FLOATING FAB: Placed perfectly above chat widget, with black/white borders -->
+        <!-- MOBILE FLOATING FAB -->
         <div class="md:hidden fixed bottom-[150px] right-4 z-[999] flex flex-col gap-2 items-center pointer-events-none">
             <button v-if="mainTab === 'users'" @click="isCreateModalOpen = true" class="pointer-events-auto flex items-center justify-center w-10 h-10 bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-500 rounded-full border border-black dark:border-white shadow-[0_8px_30px_rgba(0,0,0,0.15)] transition-transform active:scale-95">
                 <Plus class="w-5 h-5" />
@@ -316,7 +324,7 @@ const inputClass = "w-full rounded-md bg-white dark:bg-slate-900 border border-s
              <div class="flex items-center gap-3">
                  <div>
                     <h1 class="text-lg sm:text-xl font-black text-slate-900 dark:text-white leading-tight tracking-tight">System Directory</h1>
-                    <p class="text-slate-500 dark:text-slate-400 text-[9px] sm:text-[10px] uppercase font-bold tracking-wider">Manage accounts & departments</p>
+                    <p class="text-slate-500 dark:text-slate-400 text-[9px] sm:text-[10px] uppercase font-bold tracking-wider">Manage accounts & academic programs</p>
                  </div>
              </div>
         </div>
@@ -331,7 +339,7 @@ const inputClass = "w-full rounded-md bg-white dark:bg-slate-900 border border-s
                 </button>
                 <button v-if="mainTab === 'departments'" @click="isCreateDeptModalOpen = true" class="group relative flex items-center justify-center w-12 h-12 bg-white dark:bg-slate-800 rounded-full border-2 border-slate-200 dark:border-slate-700 text-purple-600 hover:border-purple-600 hover:bg-purple-50 dark:hover:bg-slate-700 transition shadow-sm focus:outline-none shrink-0">
                     <Plus class="w-5 h-5" />
-                    <span class="absolute left-full ml-3 px-2 py-1 bg-slate-800 text-white text-[9px] font-bold rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap shadow-lg">Add Dept</span>
+                    <span class="absolute left-full ml-3 px-2 py-1 bg-slate-800 text-white text-[9px] font-bold rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap shadow-lg">Add Program</span>
                 </button>
                 <button @click="exportToExcel" class="group relative flex items-center justify-center w-12 h-12 bg-white dark:bg-slate-800 rounded-full border-2 border-slate-200 dark:border-slate-700 text-emerald-600 hover:border-emerald-600 hover:bg-emerald-50 dark:hover:bg-slate-700 transition shadow-sm focus:outline-none shrink-0">
                     <Download class="w-5 h-5" />
@@ -346,7 +354,7 @@ const inputClass = "w-full rounded-md bg-white dark:bg-slate-900 border border-s
                         <Users class="w-4 h-4" /> User Directory
                     </button>
                     <button @click="mainTab = 'departments'" class="pb-1.5 text-sm sm:text-base font-black border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap uppercase tracking-widest" :class="mainTab === 'departments' ? 'border-purple-600 text-purple-600 dark:text-purple-400 dark:border-purple-400' : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300'">
-                        <Building2 class="w-4 h-4" /> Departments
+                        <Building2 class="w-4 h-4" /> Academic Programs
                     </button>
                 </div>
 
@@ -358,7 +366,7 @@ const inputClass = "w-full rounded-md bg-white dark:bg-slate-900 border border-s
                     <!-- RESPONSIVE SEARCH & FILTER CARD -->
                     <div class="bg-white dark:bg-slate-800 p-1.5 sm:p-2.5 rounded-lg sm:rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm mb-4 flex flex-row sm:flex-col lg:flex-row gap-1.5 sm:gap-2.5 items-center sm:items-stretch lg:items-center min-w-0">
                         
-                        <!-- Search (Common to both) -->
+                        <!-- Search -->
                         <div class="relative flex-1 min-w-[120px] sm:min-w-[200px]">
                             <div class="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
                                 <Search class="h-3.5 w-3.5 text-slate-400" />
@@ -366,7 +374,7 @@ const inputClass = "w-full rounded-md bg-white dark:bg-slate-900 border border-s
                             <input v-model="searchQuery" type="text" placeholder="Search accounts..." class="w-full h-8 pl-8 rounded sm:rounded-md bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-600 sm:border-slate-700 text-slate-900 dark:text-white placeholder-slate-400 focus:ring-1 sm:focus:ring-2 focus:ring-blue-500 focus:border-transparent text-xs shadow-sm transition-colors" />
                         </div>
 
-                        <!-- MOBILE FILTERS (Icon Only, Overlay Select) -->
+                        <!-- MOBILE FILTERS -->
                         <div class="flex sm:hidden flex-row gap-1.5 w-full overflow-x-auto no-scrollbar pb-1 snap-x">
                             <div v-if="availablePrograms.length > 0" class="relative shrink-0 w-10 h-8 snap-start bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded flex items-center justify-center shadow-sm transition">
                                 <BookOpen class="w-4 h-4 text-slate-500 dark:text-slate-400 pointer-events-none" />
@@ -395,7 +403,7 @@ const inputClass = "w-full rounded-md bg-white dark:bg-slate-900 border border-s
                             </div>
                         </div>
 
-                        <!-- DESKTOP FILTERS (Expanded with Text) -->
+                        <!-- DESKTOP FILTERS -->
                         <div class="hidden sm:grid grid-cols-2 lg:flex lg:flex-row gap-2 w-full lg:w-auto shrink-0 mt-1 lg:mt-0">
                             <div v-if="availablePrograms.length > 0" class="col-span-2 lg:col-span-1 shrink-0 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 shadow-sm flex items-center gap-1.5 min-w-[140px]">
                                 <BookOpen class="w-3.5 h-3.5 text-slate-400 shrink-0" />
@@ -471,7 +479,7 @@ const inputClass = "w-full rounded-md bg-white dark:bg-slate-900 border border-s
                                             <input type="checkbox" :checked="isAllSelected && paginatedUsers.length > 0" @change="toggleAll" class="rounded border-slate-300 dark:border-slate-600 text-blue-600 focus:ring-blue-500 dark:bg-slate-800 cursor-pointer shadow-sm" />
                                         </th>
                                         <th class="px-2 py-2 w-full sm:w-auto">User Details</th>
-                                        <th class="px-2 py-2 hidden sm:table-cell">Role / Dept</th>
+                                        <th class="px-2 py-2 hidden sm:table-cell">Role / Academic Program</th>
                                         <th class="px-2 py-2 hidden sm:table-cell">Status</th>
                                         <th class="px-2 py-2 text-right">Actions</th>
                                     </tr>
@@ -502,6 +510,7 @@ const inputClass = "w-full rounded-md bg-white dark:bg-slate-900 border border-s
                                                 {{ user.role }}
                                             </span>
                                             <div v-if="user.department" class="text-[8px] font-bold text-slate-500 uppercase tracking-widest truncate max-w-[150px]"><Building2 class="w-3 h-3 inline pb-0.5"/> {{ user.department.name }}</div>
+                                            <div v-else-if="user.program" class="text-[8px] font-bold text-slate-500 uppercase tracking-widest truncate max-w-[150px]">{{ user.program }}</div>
                                             <div v-else-if="user.school_id" class="text-[8px] font-bold text-slate-500 uppercase tracking-widest truncate max-w-[150px]">ID: {{ user.school_id }}</div>
                                         </td>
                                         <td class="px-2 py-1.5 hidden sm:table-cell align-top">
@@ -578,7 +587,7 @@ const inputClass = "w-full rounded-md bg-white dark:bg-slate-900 border border-s
                                     </div>
                                     <div class="text-[9px] text-slate-500 truncate mt-1 leading-tight">{{ user.email }}</div>
                                     <div class="text-[8px] font-bold text-slate-400 uppercase tracking-widest truncate mt-0.5">
-                                        {{ user.department ? user.department.name : (user.school_id ? `ID: ${user.school_id}` : 'N/A') }}
+                                        {{ user.department ? user.department.name : (user.program ? user.program : (user.school_id ? `ID: ${user.school_id}` : 'N/A')) }}
                                     </div>
                                 </div>
                             </div>
@@ -616,7 +625,6 @@ const inputClass = "w-full rounded-md bg-white dark:bg-slate-900 border border-s
 
                     <!-- CLIENT-SIDE PAGINATION UI -->
                     <div v-if="totalPages > 0" class="flex items-center justify-between px-4 py-3 border-t border-slate-200 dark:border-slate-700 sm:px-6 bg-slate-50 dark:bg-slate-900/50 shrink-0">
-                        <!-- Mobile Pagination -->
                         <div class="flex flex-1 justify-between sm:hidden">
                             <button @click="currentPage--" :disabled="currentPage === 1" class="relative inline-flex items-center px-4 py-2 text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-md hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm transition">
                                 Previous
@@ -625,7 +633,6 @@ const inputClass = "w-full rounded-md bg-white dark:bg-slate-900 border border-s
                                 Next
                             </button>
                         </div>
-                        <!-- Desktop Pagination -->
                         <div class="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
                             <div>
                                 <p class="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest">
@@ -648,43 +655,99 @@ const inputClass = "w-full rounded-md bg-white dark:bg-slate-900 border border-s
                 </div>
 
                 <!-- ========================================== -->
-                <!-- VIEW 2: DEPARTMENT DIRECTORY               -->
+                <!-- VIEW 2: ACADEMIC PROGRAMS DIRECTORY        -->
                 <!-- ========================================== -->
                 <div v-if="mainTab === 'departments'" class="animate-in fade-in slide-in-from-bottom-2 duration-300">
                     <div class="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden mb-8">
                         <div class="overflow-x-auto custom-scrollbar">
-                            <table class="w-full text-left text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap sm:whitespace-normal">
+                            <table class="w-full text-left text-[10px] sm:text-xs text-slate-500 dark:text-slate-400">
                                 <thead class="text-[8px] sm:text-[9px] uppercase font-bold text-slate-400 bg-slate-50 dark:bg-slate-900/30 border-b border-slate-100 dark:border-slate-700">
                                     <tr>
-                                        <th class="px-4 py-2 w-16">ID</th>
-                                        <th class="px-4 py-2 w-full">Department Name</th>
-                                        <th class="px-4 py-2 hidden sm:table-cell">Assigned Dean(s)</th>
-                                        <th class="px-4 py-2 text-right">Actions</th>
+                                        <th class="px-4 py-2.5">Academic Program</th>
+                                        <th class="px-4 py-2.5 hidden sm:table-cell">Assigned Dean(s)</th>
+                                        <th class="px-4 py-2.5">Teachers</th>
+                                        <th class="px-4 py-2.5 text-right">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
-                                    <tr v-for="dept in departments" :key="dept.id" class="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition">
-                                        <td class="px-4 py-2 font-mono font-bold text-slate-400">#{{ dept.id }}</td>
-                                        <td class="px-4 py-2 font-black text-slate-900 dark:text-white text-xs">{{ dept.name }}</td>
-                                        
-                                        <td class="px-4 py-2 hidden sm:table-cell">
-                                            <div v-if="dept.users && dept.users.length > 0" class="flex flex-wrap gap-1">
-                                                <span v-for="dean in dept.users" :key="dean.id" class="text-[9px] font-bold uppercase tracking-widest bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-800">
-                                                    {{ dean.name }}
-                                                </span>
-                                            </div>
-                                            <span v-else class="text-[9px] font-bold text-slate-400 uppercase tracking-widest italic">No Dean Assigned</span>
-                                        </td>
-                                        <td class="px-4 py-2 text-right">
-                                            <button @click="openDeleteDept(dept)" class="p-1.5 text-slate-400 hover:text-red-600 bg-white hover:bg-red-50 dark:bg-transparent dark:hover:bg-red-900/30 rounded transition shadow-sm border border-transparent hover:border-red-200" title="Delete Department">
-                                                <Trash2 class="w-3.5 h-3.5 inline" />
-                                            </button>
-                                        </td>
-                                    </tr>
+                                    <template v-for="dept in departments" :key="dept.id">
+                                        <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition">
+                                            <td class="px-4 py-2.5 font-black text-slate-900 dark:text-white text-xs">
+                                                {{ dept.name }}
+                                                <!-- Mobile Dean Badges -->
+                                                <div v-if="getProgramDeans(dept).length > 0" class="flex flex-wrap gap-1 mt-1 sm:hidden">
+                                                    <span v-for="dean in getProgramDeans(dept)" :key="dean.id" class="text-[8px] font-bold uppercase tracking-widest bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-800">
+                                                        Dean: {{ dean.name }}
+                                                    </span>
+                                                </div>
+                                            </td>
+                                            
+                                            <td class="px-4 py-2.5 hidden sm:table-cell">
+                                                <div v-if="getProgramDeans(dept).length > 0" class="flex flex-wrap gap-1">
+                                                    <span v-for="dean in getProgramDeans(dept)" :key="dean.id" class="text-[9px] font-bold uppercase tracking-widest bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-800">
+                                                        {{ dean.name }}
+                                                    </span>
+                                                </div>
+                                                <span v-else class="text-[9px] font-bold text-slate-400 uppercase tracking-widest italic">No Dean Assigned</span>
+                                            </td>
+
+                                            <!-- Clean Dropdown Toggle for Teachers in this Program -->
+                                            <td class="px-4 py-2.5">
+                                                <button
+                                                    type="button"
+                                                    @click="toggleProgramTeachers(dept.id)"
+                                                    class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-widest border transition shadow-sm"
+                                                    :class="expandedProgramId === dept.id
+                                                        ? 'bg-purple-600 text-white border-purple-600'
+                                                        : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-900/50 dark:hover:bg-slate-700 dark:text-slate-300 dark:border-slate-700'"
+                                                >
+                                                    <Users class="w-3 h-3 shrink-0" />
+                                                    <span>
+                                                        {{ getProgramTeachers(dept).length }}
+                                                        {{ getProgramTeachers(dept).length === 1 ? 'Teacher' : 'Teachers' }}
+                                                    </span>
+                                                    <ChevronDown
+                                                        class="w-3 h-3 shrink-0 transition-transform duration-200"
+                                                        :class="{ 'rotate-180': expandedProgramId === dept.id }"
+                                                    />
+                                                </button>
+                                            </td>
+
+                                            <td class="px-4 py-2.5 text-right">
+                                                <button @click="openDeleteDept(dept)" class="p-1.5 text-slate-400 hover:text-red-600 bg-white hover:bg-red-50 dark:bg-transparent dark:hover:bg-red-900/30 rounded transition shadow-sm border border-transparent hover:border-red-200" title="Delete Academic Program">
+                                                    <Trash2 class="w-3.5 h-3.5 inline" />
+                                                </button>
+                                            </td>
+                                        </tr>
+
+                                        <!-- Expandable Clean Dropdown Row Listing Teachers -->
+                                        <tr v-if="expandedProgramId === dept.id" class="bg-slate-50/80 dark:bg-slate-900/40">
+                                            <td colspan="4" class="px-4 py-3 border-t border-slate-100 dark:border-slate-700/60">
+                                                <div class="text-[8px] font-black uppercase tracking-widest text-slate-400 mb-2">
+                                                    Teachers under {{ dept.name }}
+                                                </div>
+                                                <div v-if="getProgramTeachers(dept).length > 0" class="flex flex-wrap gap-1.5">
+                                                    <span
+                                                        v-for="teacher in getProgramTeachers(dept)"
+                                                        :key="teacher.id"
+                                                        class="inline-flex items-center gap-1.5 text-[10px] font-bold bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 px-2.5 py-1 rounded-md border border-slate-200 dark:border-slate-700 shadow-sm"
+                                                    >
+                                                        <span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+                                                        {{ teacher.name }}
+                                                        <span v-if="teacher.school_id" class="text-[8px] font-mono text-slate-400">({{ teacher.school_id }})</span>
+                                                    </span>
+                                                </div>
+                                                <div v-else class="text-[10px] font-bold text-slate-400 italic">
+                                                    No teachers assigned to this academic program yet.
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </template>
+
                                     <tr v-if="!departments || departments.length === 0">
                                         <td colspan="4" class="px-4 py-8 text-center text-slate-400 dark:text-slate-500 text-[10px]">
-                                            <div class="font-black uppercase tracking-widest mb-1 text-slate-300 dark:text-slate-600">No Departments Established</div>
-                                            <div class="font-bold">Click the purple button below to create one.</div>
+                                            <div class="font-black uppercase tracking-widest mb-1 text-slate-300 dark:text-slate-600">No Academic Programs Established</div>
+                                            <div class="font-bold">Click the + button to add an academic program.</div>
                                         </td>
                                     </tr>
                                 </tbody>
@@ -697,7 +760,7 @@ const inputClass = "w-full rounded-md bg-white dark:bg-slate-900 border border-s
         </div>
 
         <!-- ========================================== -->
-        <!-- MODALS (Details, Create User, Create Dept) -->
+        <!-- MODALS (Details, Create User, Add Program) -->
         <!-- ========================================== -->
         <Modal :show="isUserDetailsModalOpen" @close="isUserDetailsModalOpen = false" maxWidth="sm">
             <div class="relative bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
@@ -740,7 +803,7 @@ const inputClass = "w-full rounded-md bg-white dark:bg-slate-900 border border-s
                             <span class="text-[10px] font-black text-slate-800 dark:text-slate-200 font-mono">{{ selectedUserDetails?.school_id || 'N/A' }}</span>
                         </div>
                         <div class="flex justify-between items-center border-b border-slate-200 dark:border-slate-700 pb-2">
-                            <span class="text-[9px] font-bold uppercase tracking-widest text-slate-400">Program / Dept</span>
+                            <span class="text-[9px] font-bold uppercase tracking-widest text-slate-400">Academic Program</span>
                             <span class="text-[10px] font-black text-slate-800 dark:text-slate-200 text-right max-w-[60%] truncate">
                                 {{ selectedUserDetails?.department ? selectedUserDetails.department.name : (selectedUserDetails?.program || 'N/A') }}
                             </span>
@@ -799,7 +862,7 @@ const inputClass = "w-full rounded-md bg-white dark:bg-slate-900 border border-s
                             <InputError :message="form.errors.email" class="mt-1 text-[9px]" />
                         </div>
 
-                        <!-- Role & Department / Program Grid -->
+                        <!-- Role & Academic Program Grid -->
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
                                 <InputLabel value="Account Role *" class="text-[8px] font-bold uppercase text-slate-500 mb-0.5" />
@@ -811,26 +874,22 @@ const inputClass = "w-full rounded-md bg-white dark:bg-slate-900 border border-s
                                 </select>
                             </div>
                             
-                            <!-- Department dropdown for Teacher / Dean (Now Optional) -->
+                            <!-- Academic Program dropdown for Teacher / Dean -->
                             <div v-if="form.role === 'teacher' || form.role === 'dean'">
-                                <InputLabel value="Assign Department (Optional)" class="text-[8px] font-bold uppercase text-purple-500 mb-0.5" />
+                                <InputLabel value="Academic Program (Optional)" class="text-[8px] font-bold uppercase text-purple-500 mb-0.5" />
                                 <select v-model="form.department_id" :class="inputClass" class="cursor-pointer border-purple-200 dark:border-purple-800 focus:ring-purple-500 dark:[color-scheme:dark]">
-                                    <option value="" class="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">No Department</option>
+                                    <option value="" class="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">No Academic Program</option>
                                     <option v-for="dept in departments" :key="dept.id" :value="dept.id" class="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">{{ dept.name }}</option>
                                 </select>
                                 <InputError :message="form.errors.department_id" class="mt-1 text-[9px]" />
                             </div>
 
-                            <!-- Program dropdown for Student -->
+                            <!-- Academic Program dropdown for Student (Dynamic from Admin Academic Programs) -->
                             <div v-else-if="form.role === 'student'">
-                                <InputLabel value="Program / Course *" class="text-[8px] font-bold uppercase text-slate-500 mb-0.5" />
+                                <InputLabel value="Academic Program *" class="text-[8px] font-bold uppercase text-slate-500 mb-0.5" />
                                 <select v-model="form.program" :class="inputClass" required class="cursor-pointer dark:[color-scheme:dark]">
                                     <option value="" disabled class="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">Select a Program...</option>
-                                    <option value="BS Information Technology" class="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">BS Information Technology</option>
-                                    <option value="BS Computer Science" class="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">BS Computer Science</option>
-                                    <option value="BS Education" class="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">BS Education</option>
-                                    <option value="BS Business Administration" class="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">BS Business Administration</option>
-                                    <option value="BS Accountancy" class="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">BS Accountancy</option>
+                                    <option v-for="dept in departments" :key="dept.id" :value="dept.name" class="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">{{ dept.name }}</option>
                                     <option value="Other" class="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">Other</option>
                                 </select>
                                 <InputError :message="form.errors.program" class="mt-1 text-[9px]" />
@@ -898,19 +957,19 @@ const inputClass = "w-full rounded-md bg-white dark:bg-slate-900 border border-s
                     <div class="w-6 h-6 rounded bg-purple-100 dark:bg-purple-900/30 text-purple-600 flex items-center justify-center">
                         <Building2 class="w-3.5 h-3.5" />
                     </div>
-                    Establish Department
+                    Add Academic Program
                 </h2>
                 
                 <form @submit.prevent="submitDept">
                     <div>
-                        <InputLabel value="Department Name *" class="text-[9px] font-bold uppercase text-slate-500 mb-1" />
-                        <input v-model="deptForm.name" type="text" :class="inputClass" placeholder="e.g. College of Computer Studies" required autofocus />
+                        <InputLabel value="Academic Program Name *" class="text-[9px] font-bold uppercase text-slate-500 mb-1" />
+                        <input v-model="deptForm.name" type="text" :class="inputClass" placeholder="e.g. BSIS" required autofocus />
                         <InputError :message="deptForm.errors.name" class="mt-1 text-[9px]" />
                     </div>
 
                     <div class="mt-5 pt-3 border-t border-slate-100 dark:border-slate-700 flex justify-end gap-2">
                         <button type="button" @click="isCreateDeptModalOpen = false" class="text-[10px] text-slate-500 px-3 py-1.5 font-bold hover:text-slate-700 uppercase tracking-widest transition">Cancel</button>
-                        <button :disabled="deptForm.processing" class="bg-purple-600 hover:bg-purple-500 text-white px-4 py-1.5 rounded text-[10px] uppercase tracking-widest font-black shadow-sm transition">Create</button>
+                        <button :disabled="deptForm.processing" class="bg-purple-600 hover:bg-purple-500 text-white px-4 py-1.5 rounded text-[10px] uppercase tracking-widest font-black shadow-sm transition">Add Program</button>
                     </div>
                 </form>
             </div>
@@ -919,10 +978,10 @@ const inputClass = "w-full rounded-md bg-white dark:bg-slate-900 border border-s
         <Modal :show="isDeleteDeptModalOpen" @close="isDeleteDeptModalOpen = false" maxWidth="sm">
             <div class="p-5 bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700">
                 <h2 class="text-sm font-black uppercase tracking-tight text-red-600 flex items-center gap-2 mb-2">
-                    <ShieldAlert class="w-5 h-5" /> Delete Department
+                    <ShieldAlert class="w-5 h-5" /> Delete Academic Program
                 </h2>
                 <p class="text-xs text-slate-500 dark:text-slate-400 mb-4">
-                    Deleting <strong>{{ selectedDepartment?.name }}</strong> will remove the tag from all assigned Deans and Teachers. This cannot be undone.
+                    Deleting <strong>{{ selectedDepartment?.name }}</strong> will remove the tag from all assigned Deans and Teachers, and remove it from onboarding choices. This cannot be undone.
                 </p>
                 
                 <form @submit.prevent="submitDeleteDept">
@@ -1079,9 +1138,9 @@ const inputClass = "w-full rounded-md bg-white dark:bg-slate-900 border border-s
                         </div>
                         
                         <div v-if="roleForm.role === 'teacher' || roleForm.role === 'dean'" class="col-span-2">
-                            <InputLabel value="Assign Department (Optional)" class="text-[9px] font-bold uppercase text-purple-500 mb-1" />
+                            <InputLabel value="Academic Program (Optional)" class="text-[9px] font-bold uppercase text-purple-500 mb-1" />
                             <select v-model="roleForm.department_id" :class="inputClass" class="cursor-pointer border-purple-200 dark:border-slate-700 focus:ring-purple-500 dark:[color-scheme:dark]">
-                                <option value="" class="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">No Department</option>
+                                <option value="" class="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">No Academic Program</option>
                                 <option v-for="dept in departments" :key="dept.id" :value="dept.id" class="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">{{ dept.name }}</option>
                             </select>
                             <InputError :message="roleForm.errors.department_id" class="mt-1 text-[9px]" />

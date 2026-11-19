@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\Department;
 use App\Models\User;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Support\Facades\Auth;
@@ -79,7 +80,8 @@ class GoogleAuthController extends Controller
     public function onboarding()
     {
         return Inertia::render('Auth/Onboarding', [
-            'user' => Auth::user()
+            'user' => Auth::user(),
+            'programs' => Department::orderBy('name')->get(['id', 'name']),
         ]);
     }
 

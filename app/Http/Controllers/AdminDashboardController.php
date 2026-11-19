@@ -272,7 +272,10 @@ class AdminDashboardController extends Controller
             'courses' => \App\Models\Course::select('id', 'title')->orderBy('title')->get(),
             
             'departments' => Department::with(['users' => function($q) {
-                $q->where('role', 'dean')->where('status', 'active')->select('id', 'name', 'department_id');
+                $q->whereIn('role', ['dean', 'teacher'])
+                  ->where('status', 'active')
+                  ->select('id', 'name', 'role', 'school_id', 'department_id')
+                  ->orderBy('name');
             }])->orderBy('name')->get() 
         ]);
     }
@@ -450,7 +453,7 @@ class AdminDashboardController extends Controller
     {
         $request->validate(['name' => 'required|string|max:255|unique:departments,name']);
         Department::create(['name' => $request->name]);
-        return back()->with('success', 'Department added successfully.');
+        return back()->with('success', 'Academic program added successfully.');
     }
 
     public function destroyDepartment(Request $request, Department $department)
@@ -462,7 +465,7 @@ class AdminDashboardController extends Controller
         }
 
         $department->delete();
-        return back()->with('success', 'Department deleted. Any users assigned to it have been unlinked.');
+        return back()->with('success', 'Academic program deleted. Any users assigned to it have been unlinked.');
     }
 
     public function courses()
