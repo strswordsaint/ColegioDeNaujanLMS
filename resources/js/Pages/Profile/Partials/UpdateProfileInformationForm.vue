@@ -333,16 +333,14 @@ const submit = () => {
                 <InputError class="mt-1" :message="form.errors.contact_number" />
             </div>
 
-            <div v-if="mustVerifyEmail && user.email_verified_at === null">
+            <div v-if="mustVerifyEmail && user.email_verified_at === null && !user.email?.endsWith('@lms.com') && !$page.props.auth?.is_impersonating">
                 <p class="mt-2 text-sm text-slate-800 dark:text-slate-200">
                     Your email address is unverified.
                     <Link
-                        :href="route('verification.send')"
-                        method="post"
-                        as="button"
-                        class="underline text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 rounded-md"
+                        :href="route('verification.notice')"
+                        class="underline text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                     >
-                        Click here to re-send the verification email.
+                        Click here to verify your account via OTP.
                     </Link>
                 </p>
             </div>
