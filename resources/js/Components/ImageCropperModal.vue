@@ -18,6 +18,7 @@ const naturalWidth = ref(0);
 const naturalHeight = ref(0);
 const displayWidth = ref(0);
 const displayHeight = ref(0);
+const isProcessing = ref(false);
 
 // Crop box coordinates in displayed image pixels
 const box = ref({ x: 0, y: 0, width: 100, height: 100 });
@@ -210,7 +211,8 @@ const maskStyles = computed(() => ({
 }));
 
 const applyCrop = () => {
-    if (!imageSrc.value || !displayWidth.value) return;
+    if (!imageSrc.value || !displayWidth.value || isProcessing.value) return;
+    isProcessing.value = true;
 
     const img = new Image();
     img.onload = () => {
@@ -252,6 +254,9 @@ const applyCrop = () => {
             'image/jpeg',
             0.92
         );
+    };
+    img.onerror = () => {
+        isProcessing.value = false;
     };
     img.src = imageSrc.value;
 };
@@ -398,11 +403,12 @@ const applyCrop = () => {
                 </button>
                 <button
                     type="button"
+                    :disabled="isProcessing"
                     @click="applyCrop"
-                    class="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest bg-blue-600 hover:bg-blue-500 text-white shadow-sm transition"
+                    class="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest bg-blue-600 hover:bg-blue-500 text-white shadow-sm transition disabled:opacity-50"
                 >
                     <Check class="w-3.5 h-3.5" />
-                    Crop &amp; Use Photo
+                    {{ isProcessing ? 'Cropping...' : 'Crop & Use Photo' }}
                 </button>
             </div>
         </div>
